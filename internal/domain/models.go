@@ -43,12 +43,23 @@ type UserSession struct {
 	RoleID               int64  // stored platform role ID; 0 when DB is not configured
 	RoleSlug             string // stored platform role slug: "administrator" | "assessor" | "reader" | ""
 	ImpersonatedRoleSlug string
+	ImpersonatedUserID   int64  // dev-mode: target platform user ID (0 = not impersonating a user)
+	ImpersonatedTeamName string // dev-mode: team name of the impersonated user ("" when not impersonating)
 	LastVisitedPath      string
 	TeamID               *int64 // nil when no team is assigned
 	TeamName             string // empty when no team is assigned
 	AuthSource           string // "" for GitHub OAuth; "dev" for development login
 	LoginAt              time.Time
 	Active               bool
+}
+
+// EffectiveUserID returns the active platform user ID for the session. In
+// development mode this may differ from the stored platform user ID.
+func (s UserSession) EffectiveUserID() int64 {
+	if s.ImpersonatedUserID != 0 {
+		return s.ImpersonatedUserID
+	}
+	return s.UserID
 }
 
 // EffectiveRoleSlug returns the active role for request authorization. In
@@ -60,9 +71,21 @@ func (s UserSession) EffectiveRoleSlug() string {
 	return s.RoleSlug
 }
 
+// EffectiveTeamName returns the active team name for the session. In
+// development mode this may differ from the stored team name.
+func (s UserSession) EffectiveTeamName() string {
+	if s.ImpersonatedUserID != 0 {
+		return s.ImpersonatedTeamName
+	}
+	return s.TeamName
+}
+
 // IsImpersonating reports whether the session is currently overriding the
-// stored platform role.
+// stored platform role or user.
 func (s UserSession) IsImpersonating() bool {
+	if s.ImpersonatedUserID != 0 {
+		return true
+	}
 	return s.ImpersonatedRoleSlug != "" && s.ImpersonatedRoleSlug != s.RoleSlug
 }
 

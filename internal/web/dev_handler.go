@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/h3ow3d/special-dollop/internal/audit"
@@ -50,6 +51,87 @@ func (h *Handler) impersonateRole(w http.ResponseWriter, r *http.Request) {
 			"stored_role": session.RoleSlug,
 		}, r.RemoteAddr)
 	}
+
+	http.Redirect(w, r, devReturnTo(session), http.StatusFound)
+}
+
+func (h *Handler) impersonateUser(w http.ResponseWriter, r *http.Request) {
+	if !h.devMode {
+		http.NotFound(w, r)
+		return
+	}
+	if h.admin == nil {
+		http.Error(w, "admin handler unavailable", http.StatusInternalServerError)
+		return
+	}
+
+	session, ok := security.SessionFromContext(r.Context())
+	if !ok || session.UserID == 0 {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	fromUserID := session.ImpersonatedUserID
+	rawID := strings.TrimSpace(r.FormValue("user_id"))
+
+	if rawID == "" || rawID == "0" {
+		// Clear user impersonation.
+		session.ImpersonatedUserID = 0
+		session.ImpersonatedTeamName = ""
+		session.ImpersonatedRoleSlug = ""
+	} else {
+		targetID, err := strconv.ParseInt(rawID, 10, 64)
+		if err != nil || targetID <= 0 {
+			http.Error(w, "invalid user_id", http.StatusBadRequest)
+			return
+		}
+		targetUser, err := h.admin.userSvc.GetByID(r.Context(), targetID)
+		if err != nil {
+			http.Error(w, "user not found", http.StatusBadRequest)
+			return
+		}
+		if !targetUser.Active {
+			http.Error(w, "user is inactive", http.StatusBadRequest)
+			return
+		}
+
+		// Resolve target user's role slug.
+		roles, err := h.admin.userSvc.ListRoles(r.Context())
+		if err != nil {
+			http.Error(w, "list roles: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		roleSlug := ""
+		for _, role := range roles {
+			if role.ID == targetUser.RoleID {
+				roleSlug = role.Slug
+				break
+			}
+		}
+
+		// Resolve target user's team name.
+		teamName := ""
+		if targetUser.TeamID != nil {
+			if t, err := h.admin.teamSvc.GetByID(r.Context(), *targetUser.TeamID); err == nil {
+				teamName = t.Name
+			}
+		}
+
+		session.ImpersonatedUserID = targetID
+		session.ImpersonatedRoleSlug = roleSlug
+		session.ImpersonatedTeamName = teamName
+	}
+
+	if err := h.oauth.SetSessionCookie(w, session); err != nil {
+		http.Error(w, "session encode failed", http.StatusInternalServerError)
+		return
+	}
+
+	actorID := session.UserID
+	h.admin.auditSvc.Record(r.Context(), &actorID, audit.ActionUserImpersonation, map[string]any{
+		"from_user_id": fromUserID,
+		"to_user_id":   session.ImpersonatedUserID,
+	}, r.RemoteAddr)
 
 	http.Redirect(w, r, devReturnTo(session), http.StatusFound)
 }
