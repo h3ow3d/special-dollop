@@ -47,14 +47,12 @@ var BootstrapInventory = []struct {
 	Description   string
 	TeamName      string
 	Registry      string
-	Reference     string
 	PackageURL    string
 	PackageName   string
 	RepositoryURL string
 }{
 	{
 		Name: "proverjay", TeamName: "Platform Team", Registry: "ghcr.io",
-		Reference:     "latest",
 		PackageName:   "h3ow3d/proverjay",
 		PackageURL:    "https://github.com/h3ow3d/proverjay/pkgs/container/proverjay",
 		RepositoryURL: "https://github.com/h3ow3d/proverjay",
@@ -62,7 +60,6 @@ var BootstrapInventory = []struct {
 	},
 	{
 		Name: "harbor", TeamName: "Platform Team", Registry: "ghcr.io",
-		Reference:     "latest",
 		PackageName:   "goharbor/harbor",
 		PackageURL:    "https://github.com/goharbor/harbor/pkgs/container/harbor",
 		RepositoryURL: "https://github.com/goharbor/harbor",
@@ -70,7 +67,6 @@ var BootstrapInventory = []struct {
 	},
 	{
 		Name: "cert-manager", TeamName: "Platform Team", Registry: "quay.io",
-		Reference:     "latest",
 		PackageName:   "jetstack/cert-manager-controller",
 		PackageURL:    "https://quay.io/repository/jetstack/cert-manager-controller",
 		RepositoryURL: "https://github.com/cert-manager/cert-manager",
@@ -78,7 +74,6 @@ var BootstrapInventory = []struct {
 	},
 	{
 		Name: "customer-portal", TeamName: "Applications Team", Registry: "ghcr.io",
-		Reference:     "latest",
 		PackageName:   "h3ow3d/customer-portal",
 		PackageURL:    "https://github.com/h3ow3d/customer-portal/pkgs/container/customer-portal",
 		RepositoryURL: "https://github.com/h3ow3d/customer-portal",
@@ -86,7 +81,6 @@ var BootstrapInventory = []struct {
 	},
 	{
 		Name: "orders-api", TeamName: "Applications Team", Registry: "ghcr.io",
-		Reference:     "latest",
 		PackageName:   "h3ow3d/orders-api",
 		PackageURL:    "https://github.com/h3ow3d/orders-api/pkgs/container/orders-api",
 		RepositoryURL: "https://github.com/h3ow3d/orders-api",
@@ -94,7 +88,6 @@ var BootstrapInventory = []struct {
 	},
 	{
 		Name: "trivy", TeamName: "Security Team", Registry: "ghcr.io",
-		Reference:     "latest",
 		PackageName:   "aquasecurity/trivy",
 		PackageURL:    "https://github.com/aquasecurity/trivy/pkgs/container/trivy",
 		RepositoryURL: "https://github.com/aquasecurity/trivy",
@@ -102,7 +95,6 @@ var BootstrapInventory = []struct {
 	},
 	{
 		Name: "falco", TeamName: "Security Team", Registry: "docker.io",
-		Reference:     "latest",
 		PackageName:   "falcosecurity/falco",
 		PackageURL:    "https://hub.docker.com/r/falcosecurity/falco",
 		RepositoryURL: "https://github.com/falcosecurity/falco",
@@ -110,7 +102,6 @@ var BootstrapInventory = []struct {
 	},
 	{
 		Name: "analytics-worker", TeamName: "Data Team", Registry: "ghcr.io",
-		Reference:     "latest",
 		PackageName:   "h3ow3d/analytics-worker",
 		PackageURL:    "https://github.com/h3ow3d/analytics-worker/pkgs/container/analytics-worker",
 		RepositoryURL: "https://github.com/h3ow3d/analytics-worker",
@@ -216,7 +207,6 @@ func (s *Seeder) Seed(ctx context.Context) error {
 				Description:   spec.Description,
 				TeamID:        team.ID,
 				Registry:      spec.Registry,
-				Reference:     spec.Reference,
 				PackageURL:    spec.PackageURL,
 				PackageName:   spec.PackageName,
 				RepositoryURL: spec.RepositoryURL,

@@ -41,6 +41,7 @@ func (ih *InventoryHandler) RegisterRoutes(r chi.Router) {
 	// All authenticated roles can view inventory.
 	r.Get("/inventory", ih.list)
 	r.Get("/inventory/{id}", ih.detail)
+	r.Get("/inventory/{id}/digest/{digest_id}", ih.digestDetail)
 
 	// Only administrators and assessors can manage inventory.
 	r.Group(func(wr chi.Router) {
@@ -108,8 +109,11 @@ func (ih *InventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 		items = filtered
 	}
 
+	summaries, _ := ih.inventorySvc.GetSummaries(r.Context())
+
 	data := map[string]any{
 		"items":        items,
+		"summaries":    summaries,
 		"session":      session,
 		"search":       r.URL.Query().Get("search"),
 		"filterTeamID": filterTeamID,
@@ -155,33 +159,73 @@ func (ih *InventoryHandler) detail(w http.ResponseWriter, r *http.Request) {
 		session.TeamID != nil && *session.TeamID == item.TeamID {
 		canEdit = true
 	}
-	artifactMetadata, err := ih.inventorySvc.GetArtifactMetadata(r.Context(), item.ID)
+
+	digests, err := ih.inventorySvc.GetArtifactDigests(r.Context(), item.ID)
 	if err != nil {
-		http.Error(w, "failed to load artifact metadata: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "failed to load artifact digests: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	tags, err := ih.inventorySvc.GetRepositoryTags(r.Context(), item.ID)
+	if err != nil {
+		http.Error(w, "failed to load repository tags: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	evidenceGroups := map[string]any{
-		"signatures":   []*inventoryItemEvidenceView{},
-		"sboms":        []*inventoryItemEvidenceView{},
-		"provenance":   []*inventoryItemEvidenceView{},
-		"attestations": []*inventoryItemEvidenceView{},
+	ih.tmpl.render(w, r, "inventory_detail.html", map[string]any{
+		"item":    item,
+		"team":    owningTeam,
+		"canEdit": canEdit,
+		"session": session,
+		"csrf":    csrf.Token(r),
+		"digests": digests,
+		"tags":    tags,
+	})
+}
+
+// ── Digest Detail ─────────────────────────────────────────────────────────────
+
+func (ih *InventoryHandler) digestDetail(w http.ResponseWriter, r *http.Request) {
+	item, ok := ih.loadItem(w, r)
+	if !ok {
+		return
 	}
-	if artifactMetadata != nil {
-		evidenceGroups = groupEvidence(artifactMetadata)
+	session, _ := security.SessionFromContext(r.Context())
+
+	if session.EffectiveRoleSlug() != string(rbac.RoleAdministrator) {
+		if session.TeamID == nil || *session.TeamID != item.TeamID {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 
-	ih.tmpl.render(w, r, "inventory_detail.html", map[string]any{
-		"item":             item,
-		"team":             owningTeam,
-		"canEdit":          canEdit,
-		"session":          session,
-		"csrf":             csrf.Token(r),
-		"artifactMetadata": artifactMetadata,
-		"signatures":       evidenceGroups["signatures"],
-		"sboms":            evidenceGroups["sboms"],
-		"provenance":       evidenceGroups["provenance"],
-		"attestations":     evidenceGroups["attestations"],
+	digestIDStr := chi.URLParam(r, "digest_id")
+	digestID, err := strconv.ParseInt(digestIDStr, 10, 64)
+	if err != nil || digestID <= 0 {
+		http.Error(w, "invalid digest_id", http.StatusBadRequest)
+		return
+	}
+
+	digest, err := ih.inventorySvc.GetDigestByID(r.Context(), digestID)
+	if err != nil || digest == nil || digest.InventoryItemID != item.ID {
+		http.Error(w, "digest not found", http.StatusNotFound)
+		return
+	}
+
+	// Find tags pointing at this digest.
+	allTags, _ := ih.inventorySvc.GetRepositoryTags(r.Context(), item.ID)
+	var digestTags []*evidence.RepositoryTag
+	for _, t := range allTags {
+		if t.ArtifactDigestID != nil && *t.ArtifactDigestID == digestID {
+			digestTags = append(digestTags, t)
+		}
+	}
+
+	ih.tmpl.render(w, r, "inventory_digest_detail.html", map[string]any{
+		"item":    item,
+		"digest":  digest,
+		"tags":    digestTags,
+		"session": session,
+		"csrf":    csrf.Token(r),
 	})
 }
 
@@ -219,7 +263,6 @@ func (ih *InventoryHandler) create(w http.ResponseWriter, r *http.Request) {
 		Description:   r.FormValue("description"),
 		TeamID:        teamID,
 		Registry:      r.FormValue("registry"),
-		Reference:     r.FormValue("reference"),
 		PackageURL:    r.FormValue("package_url"),
 		PackageName:   r.FormValue("package_name"),
 		RepositoryURL: r.FormValue("repository_url"),
@@ -274,7 +317,6 @@ func (ih *InventoryHandler) update(w http.ResponseWriter, r *http.Request) {
 	item.Name = r.FormValue("name")
 	item.Description = r.FormValue("description")
 	item.Registry = r.FormValue("registry")
-	item.Reference = r.FormValue("reference")
 	item.PackageURL = r.FormValue("package_url")
 	item.PackageName = r.FormValue("package_name")
 	item.RepositoryURL = r.FormValue("repository_url")
@@ -417,44 +459,7 @@ func validateInventoryItem(item *inventory.InventoryItem) error {
 		return fmt.Errorf("registry is required")
 	case strings.TrimSpace(item.PackageName) == "":
 		return fmt.Errorf("repository is required")
-	case strings.TrimSpace(item.Reference) == "":
-		return fmt.Errorf("reference is required")
 	default:
 		return nil
 	}
-}
-
-type inventoryItemEvidenceView struct {
-	Name         string
-	Digest       string
-	MediaType    string
-	ArtifactType string
-}
-
-func groupEvidence(metadata *evidence.ArtifactMetadata) map[string]any {
-	groups := map[string]any{
-		"signatures":   []*inventoryItemEvidenceView{},
-		"sboms":        []*inventoryItemEvidenceView{},
-		"provenance":   []*inventoryItemEvidenceView{},
-		"attestations": []*inventoryItemEvidenceView{},
-	}
-	for _, item := range metadata.Evidence {
-		view := &inventoryItemEvidenceView{
-			Name:         item.Name,
-			Digest:       item.Digest,
-			MediaType:    item.MediaType,
-			ArtifactType: item.ArtifactType,
-		}
-		switch item.Type {
-		case evidence.EvidenceTypeSignature:
-			groups["signatures"] = append(groups["signatures"].([]*inventoryItemEvidenceView), view)
-		case evidence.EvidenceTypeSBOM:
-			groups["sboms"] = append(groups["sboms"].([]*inventoryItemEvidenceView), view)
-		case evidence.EvidenceTypeProvenance:
-			groups["provenance"] = append(groups["provenance"].([]*inventoryItemEvidenceView), view)
-		default:
-			groups["attestations"] = append(groups["attestations"].([]*inventoryItemEvidenceView), view)
-		}
-	}
-	return groups
 }

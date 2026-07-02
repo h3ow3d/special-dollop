@@ -29,25 +29,25 @@ func NewRepository(db *sql.DB) Repository { return &pgRepository{db: db} }
 func (r *pgRepository) Create(ctx context.Context, item *InventoryItem) error {
 	const q = `
 		INSERT INTO inventory_items
-		    (name, description, team_id, registry, reference, package_url, package_name, repository_url, active)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		    (name, description, team_id, registry, package_url, package_name, repository_url, active)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at`
 	return r.db.QueryRowContext(ctx, q,
 		item.Name, item.Description, item.TeamID,
-		item.Registry, item.Reference, item.PackageURL, item.PackageName, item.RepositoryURL,
+		item.Registry, item.PackageURL, item.PackageName, item.RepositoryURL,
 		item.Active,
 	).Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt)
 }
 
 func (r *pgRepository) GetByID(ctx context.Context, id int64) (*InventoryItem, error) {
 	const q = `
-		SELECT id, name, description, team_id, registry, reference, package_url, package_name,
+		SELECT id, name, description, team_id, registry, package_url, package_name,
 		       repository_url, active, created_at, updated_at
 		FROM inventory_items WHERE id = $1`
 	item := &InventoryItem{}
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&item.ID, &item.Name, &item.Description, &item.TeamID,
-		&item.Registry, &item.Reference, &item.PackageURL, &item.PackageName, &item.RepositoryURL,
+		&item.Registry, &item.PackageURL, &item.PackageName, &item.RepositoryURL,
 		&item.Active, &item.CreatedAt, &item.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -62,12 +62,12 @@ func (r *pgRepository) GetByID(ctx context.Context, id int64) (*InventoryItem, e
 func (r *pgRepository) Update(ctx context.Context, item *InventoryItem) error {
 	const q = `
 		UPDATE inventory_items
-		SET name=$1, description=$2, registry=$3, reference=$4, package_url=$5,
-		    package_name=$6, repository_url=$7, updated_at=NOW()
-		WHERE id=$8
+		SET name=$1, description=$2, registry=$3, package_url=$4,
+		    package_name=$5, repository_url=$6, updated_at=NOW()
+		WHERE id=$7
 		RETURNING updated_at`
 	err := r.db.QueryRowContext(ctx, q,
-		item.Name, item.Description, item.Registry, item.Reference,
+		item.Name, item.Description, item.Registry,
 		item.PackageURL, item.PackageName, item.RepositoryURL, item.ID,
 	).Scan(&item.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -90,7 +90,7 @@ func (r *pgRepository) SetActive(ctx context.Context, id int64, active bool) err
 }
 
 const itemColumns = `
-	i.id, i.name, i.description, i.team_id, i.registry, i.reference, i.package_url,
+	i.id, i.name, i.description, i.team_id, i.registry, i.package_url,
 	i.package_name, i.repository_url, i.active, i.created_at, i.updated_at,
 	COALESCE(t.name, '')`
 
@@ -103,7 +103,7 @@ func scanItemWithTeam(row rowScanner) (*InventoryItemWithTeam, error) {
 	item := &InventoryItemWithTeam{}
 	err := row.Scan(
 		&item.ID, &item.Name, &item.Description, &item.TeamID,
-		&item.Registry, &item.Reference, &item.PackageURL, &item.PackageName, &item.RepositoryURL,
+		&item.Registry, &item.PackageURL, &item.PackageName, &item.RepositoryURL,
 		&item.Active, &item.CreatedAt, &item.UpdatedAt,
 		&item.TeamName,
 	)

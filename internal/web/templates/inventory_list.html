@@ -87,6 +87,20 @@
             <td class="px-4 py-3">
               <div class="font-medium">{{.Name}}</div>
               {{if .PackageName}}<div class="text-xs text-slate-500">{{.PackageName}}</div>{{end}}
+              {{if $.summaries}}
+                {{$s := index $.summaries .ID}}
+                {{if $s}}
+                <div class="text-xs text-slate-400 mt-0.5">
+                  <span>{{$s.TagCount}} tag{{if ne $s.TagCount 1}}s{{end}}</span>
+                  <span class="mx-1">·</span>
+                  <span>{{$s.DigestCount}} digest{{if ne $s.DigestCount 1}}s{{end}}</span>
+                  {{if $s.LastDiscoveredAt}}
+                  <span class="mx-1">·</span>
+                  <span>discovered {{formatTime $s.LastDiscoveredAt}}</span>
+                  {{end}}
+                </div>
+                {{end}}
+              {{end}}
             </td>
             {{if $.isAdmin}}
             <td class="px-4 py-3 text-slate-700">{{.TeamName}}</td>

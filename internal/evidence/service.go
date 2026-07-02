@@ -7,84 +7,151 @@ import (
 	"time"
 )
 
-// Discoverer resolves OCI metadata and evidence for an inventory item.
-type Discoverer interface {
-	Discover(ctx context.Context, target DiscoveryTarget) (*DiscoveryResult, error)
+// RepositoryDiscoverer resolves OCI metadata and evidence for all tags in a
+// repository. The OCI discoverer in infra/oci implements this interface.
+type RepositoryDiscoverer interface {
+	ListTags(ctx context.Context, registry, repository string) ([]string, error)
+	ResolveTag(ctx context.Context, registry, repository, tag string) (*TagResolution, error)
+	ListReferrers(ctx context.Context, registry, repository, digest string) ([]*DigestEvidence, []string, error)
 }
 
-// Service orchestrates evidence discovery and persistence.
+// Service orchestrates repository-scoped evidence discovery and persistence.
 type Service struct {
 	repo       Repository
-	discoverer Discoverer
+	discoverer RepositoryDiscoverer
 }
 
 // NewService creates an evidence service.
-func NewService(repo Repository, discoverer Discoverer) *Service {
+func NewService(repo Repository, discoverer RepositoryDiscoverer) *Service {
 	return &Service{repo: repo, discoverer: discoverer}
 }
 
-// Refresh discovers and persists the latest artifact metadata and evidence for
-// the specified inventory item. Discovery failures are recorded as metadata so
-// callers can still render status on the inventory page.
-func (s *Service) Refresh(ctx context.Context, target DiscoveryTarget) error {
+// RefreshRepository discovers all tags in the repository, resolves each tag to
+// an immutable digest, and discovers referrer evidence for every unique digest.
+// Errors during individual tag or evidence resolution are tolerated; they are
+// stored as per-digest discovery status and do not abort the full scan.
+func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget) error {
 	if s == nil || s.repo == nil {
 		return nil
 	}
 
 	target.Registry = strings.TrimSpace(target.Registry)
 	target.Repository = strings.TrimSpace(target.Repository)
-	target.Reference = strings.TrimSpace(target.Reference)
 	now := time.Now().UTC()
-
-	base := &ArtifactMetadata{
-		InventoryItemID: target.InventoryItemID,
-		Registry:        target.Registry,
-		Repository:      target.Repository,
-		Reference:       target.Reference,
-		LastRefreshAt:   now,
-	}
 
 	if target.InventoryItemID <= 0 {
 		return fmt.Errorf("inventory item id is required")
 	}
-	if target.Registry == "" || target.Repository == "" || target.Reference == "" {
-		base.DiscoveryStatus = DiscoveryStatusFailed
-		base.DiscoveryError = "registry, repository, and reference are required for OCI discovery"
-		return s.repo.Save(ctx, base, nil)
+	if target.Registry == "" || target.Repository == "" {
+		return fmt.Errorf("registry and repository are required for OCI discovery")
 	}
 	if s.discoverer == nil {
-		base.DiscoveryStatus = DiscoveryStatusFailed
-		base.DiscoveryError = "oci discovery is not configured"
-		return s.repo.Save(ctx, base, nil)
+		return nil
 	}
 
-	result, err := s.discoverer.Discover(ctx, target)
+	// Step 1: enumerate all tags in the repository.
+	tags, err := s.discoverer.ListTags(ctx, target.Registry, target.Repository)
 	if err != nil {
-		base.DiscoveryStatus = DiscoveryStatusFailed
-		base.DiscoveryError = err.Error()
-		return s.repo.Save(ctx, base, nil)
+		return fmt.Errorf("list tags for %s/%s: %w", target.Registry, target.Repository, err)
 	}
 
-	base.ResolvedReference = result.ResolvedReference
-	base.Digest = result.Digest
-	base.MediaType = result.MediaType
-	base.ArtifactType = result.ArtifactType
-	base.SizeBytes = result.SizeBytes
-	base.LastDiscoveredAt = now
-	if len(result.Warnings) > 0 {
-		base.DiscoveryStatus = DiscoveryStatusWarning
-		base.DiscoveryError = strings.Join(result.Warnings, "\n")
-	} else {
-		base.DiscoveryStatus = DiscoveryStatusSuccess
+	// Step 2: resolve each tag to a digest and upsert rows.
+	// Track unique digests discovered in this scan.
+	seenDigests := make(map[string]*ArtifactDigest)
+	for _, tag := range tags {
+		resolution, err := s.discoverer.ResolveTag(ctx, target.Registry, target.Repository, tag)
+		if err != nil {
+			// Non-fatal: skip this tag and continue with the next.
+			continue
+		}
+
+		d, ok := seenDigests[resolution.Digest]
+		if !ok {
+			d = &ArtifactDigest{
+				InventoryItemID: target.InventoryItemID,
+				Digest:          resolution.Digest,
+				MediaType:       resolution.MediaType,
+				ArtifactType:    resolution.ArtifactType,
+				SizeBytes:       resolution.SizeBytes,
+				DiscoveryStatus: DiscoveryStatusPending,
+				LastRefreshAt:   now,
+			}
+			if err := s.repo.UpsertDigest(ctx, d); err != nil {
+				return fmt.Errorf("upsert digest %q: %w", resolution.Digest, err)
+			}
+			seenDigests[resolution.Digest] = d
+		}
+
+		digestID := d.ID
+		rt := &RepositoryTag{
+			InventoryItemID:  target.InventoryItemID,
+			Tag:              tag,
+			ArtifactDigestID: &digestID,
+			LastSeenAt:       now,
+		}
+		if err := s.repo.UpsertTag(ctx, rt); err != nil {
+			return fmt.Errorf("upsert tag %q: %w", tag, err)
+		}
 	}
 
-	return s.repo.Save(ctx, base, result.Evidence)
+	// Step 3: discover referrer evidence for every unique digest found above.
+	for digest, d := range seenDigests {
+		referrers, warnings, err := s.discoverer.ListReferrers(ctx, target.Registry, target.Repository, digest)
+		if err != nil {
+			if updateErr := s.repo.UpdateDigestStatus(ctx, d.ID, DiscoveryStatusFailed, err.Error(), time.Time{}); updateErr != nil {
+				return updateErr
+			}
+			continue
+		}
+
+		if err := s.repo.ReplaceEvidence(ctx, d.ID, referrers); err != nil {
+			return fmt.Errorf("replace evidence for digest %q: %w", digest, err)
+		}
+
+		status := DiscoveryStatusSuccess
+		errMsg := ""
+		if len(warnings) > 0 {
+			status = DiscoveryStatusWarning
+			errMsg = strings.Join(warnings, "\n")
+		}
+		if err := s.repo.UpdateDigestStatus(ctx, d.ID, status, errMsg, now); err != nil {
+			return fmt.Errorf("update digest status for %q: %w", digest, err)
+		}
+	}
+
+	return nil
 }
 
-// GetByInventoryItemID returns the latest persisted metadata and evidence.
-func (s *Service) GetByInventoryItemID(ctx context.Context, inventoryItemID int64) (*ArtifactMetadata, error) {
+// GetDigestByID returns a single artifact digest with its evidence and tag names.
+func (s *Service) GetDigestByID(ctx context.Context, id int64) (*ArtifactDigest, error) {
 	if s == nil || s.repo == nil {
 		return nil, nil
 	}
-	return s.repo.GetByInventoryItemID(ctx, inventoryItemID)
+	return s.repo.GetDigestByID(ctx, id)
+}
+
+// ListDigestsByItem returns all discovered digests for an inventory item,
+// including their associated evidence and tag names.
+func (s *Service) ListDigestsByItem(ctx context.Context, inventoryItemID int64) ([]*ArtifactDigest, error) {
+	if s == nil || s.repo == nil {
+		return nil, nil
+	}
+	return s.repo.ListDigestsByItem(ctx, inventoryItemID)
+}
+
+// ListTagsByItem returns all discovered repository tags for an inventory item.
+func (s *Service) ListTagsByItem(ctx context.Context, inventoryItemID int64) ([]*RepositoryTag, error) {
+	if s == nil || s.repo == nil {
+		return nil, nil
+	}
+	return s.repo.ListTagsByItem(ctx, inventoryItemID)
+}
+
+// GetSummaries returns a per-inventory-item discovery summary map, used for
+// efficient display in the inventory list view.
+func (s *Service) GetSummaries(ctx context.Context) (map[int64]*RepositorySummary, error) {
+	if s == nil || s.repo == nil {
+		return nil, nil
+	}
+	return s.repo.GetSummaries(ctx)
 }
