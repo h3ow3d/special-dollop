@@ -25,17 +25,19 @@ u, ok := ctx.Value(userKey).(domain.User)
 return u, ok
 }
 
-// GitHubOAuthConfig holds GitHub OAuth2 application credentials.
+// GitHubOAuthConfig holds GitHub OAuth2 application credentials and runtime options.
 type GitHubOAuthConfig struct {
 ClientID     string
 ClientSecret string
 RedirectURL  string
+// SecureCookies should be true in production (HTTPS). Set to false for local HTTP development.
+SecureCookies bool
 }
 
 // OAuthHandler implements the GitHub OAuth2 flow.
 type OAuthHandler struct {
-cfg    GitHubOAuthConfig
-sc     *securecookie.SecureCookie
+cfg GitHubOAuthConfig
+sc  *securecookie.SecureCookie
 }
 
 // NewOAuthHandler creates an OAuthHandler.
@@ -43,6 +45,9 @@ sc     *securecookie.SecureCookie
 func NewOAuthHandler(cfg GitHubOAuthConfig, hashKey []byte) *OAuthHandler {
 return &OAuthHandler{cfg: cfg, sc: securecookie.New(hashKey, nil)}
 }
+
+// SecureCookies reports whether cookies should be sent with the Secure flag.
+func (h *OAuthHandler) SecureCookies() bool { return h.cfg.SecureCookies }
 
 // RedirectToGitHub handles GET /auth/login.
 // It generates a random state, stores it in a temporary cookie, and redirects
@@ -62,6 +67,7 @@ http.SetCookie(w, &http.Cookie{
 Name:     "clph_oauth_state",
 Value:    encoded,
 HttpOnly: true,
+Secure:   h.cfg.SecureCookies,
 SameSite: http.SameSiteLaxMode,
 Path:     "/auth/callback",
 MaxAge:   300,
@@ -96,7 +102,14 @@ http.Error(w, "state mismatch", http.StatusBadRequest)
 return
 }
 // Clear state cookie
-http.SetCookie(w, &http.Cookie{Name: "clph_oauth_state", MaxAge: -1, Path: "/auth/callback"})
+http.SetCookie(w, &http.Cookie{
+Name:     "clph_oauth_state",
+Value:    "",
+HttpOnly: true,
+Secure:   h.cfg.SecureCookies,
+Path:     "/auth/callback",
+MaxAge:   -1,
+})
 
 code := r.URL.Query().Get("code")
 if code == "" {
@@ -125,6 +138,7 @@ http.SetCookie(w, &http.Cookie{
 Name:     "clph_session",
 Value:    encoded,
 HttpOnly: true,
+Secure:   h.cfg.SecureCookies,
 SameSite: http.SameSiteStrictMode,
 Path:     "/",
 MaxAge:   86400, // 24 hours

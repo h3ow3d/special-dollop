@@ -36,12 +36,13 @@ svc := app.NewService(store, builder, signer, publisher)
 
 // GitHub OAuth
 oauthCfg := security.GitHubOAuthConfig{
-ClientID:     getenv("GITHUB_CLIENT_ID", ""),
-ClientSecret: getenv("GITHUB_CLIENT_SECRET", ""),
-RedirectURL:  getenv("GITHUB_REDIRECT_URL", "http://localhost:8080/auth/callback"),
+	ClientID:      getenv("GITHUB_CLIENT_ID", ""),
+	ClientSecret:  getenv("GITHUB_CLIENT_SECRET", ""),
+	RedirectURL:   getenv("GITHUB_REDIRECT_URL", "http://localhost:8080/auth/callback"),
+	SecureCookies: getenv("SECURE_COOKIES", "false") == "true",
 }
 if oauthCfg.ClientID == "" {
-log.Println("WARNING: GITHUB_CLIENT_ID not set – OAuth login will not work")
+	log.Println("WARNING: GITHUB_CLIENT_ID not set – OAuth login will not work")
 }
 
 sessionHashKey := []byte(padTo32(getenv("SESSION_SECRET", "replace-me-with-32-byte-session-secret")))

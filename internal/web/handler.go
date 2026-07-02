@@ -152,8 +152,15 @@ h.render(w, r, "index.html", nil)
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
-http.SetCookie(w, &http.Cookie{Name: "clph_session", MaxAge: -1, Path: "/"})
-http.Redirect(w, r, "/", http.StatusFound)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "clph_session",
+		Value:    "",
+		HttpOnly: true,
+		Secure:   h.oauth.SecureCookies(),
+		Path:     "/",
+		MaxAge:   -1,
+	})
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // ── Wizard handlers ──────────────────────────────────────────────────────────
