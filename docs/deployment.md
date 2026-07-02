@@ -2,19 +2,44 @@
 
 ## Local Development
 
-1. Copy the example environment file and fill in your GitHub OAuth app credentials:
+1. Create a GitHub OAuth App for local development:
+
+   1. Go to `https://github.com/settings/developers`.
+   2. Open **OAuth Apps** and select **New OAuth App**.
+   3. Set **Homepage URL** to `http://localhost:8080`.
+   4. Set **Authorization callback URL** to `http://localhost:8080/auth/callback`.
+   5. Create the app, then copy the generated **Client ID** and **Client Secret**.
+
+   This service uses a GitHub OAuth App for sign-in. A GitHub App is not required.
+
+2. Copy the example environment file:
 
    ```bash
    cp .env.example .env
    ```
 
-2. Start the application:
+3. Edit `.env` and set:
+
+   - `GITHUB_CLIENT_ID` to the OAuth App client ID
+   - `GITHUB_CLIENT_SECRET` to the OAuth App client secret
+   - `GITHUB_REDIRECT_URL` to `http://localhost:8080/auth/callback`
+   - `CSRF_AUTH_KEY` to a random 32-byte secret
+   - `SESSION_SECRET` to a random 32-byte secret
+
+   You can generate the two local secrets with:
+
+   ```bash
+   openssl rand -hex 16
+   openssl rand -hex 16
+   ```
+
+4. Start the application:
 
    ```bash
    docker compose up --build
    ```
 
-3. Open `http://localhost:8080`
+5. Open `http://localhost:8080`
 
 The docker compose stack starts:
 - `clph-web` — the Go web application
