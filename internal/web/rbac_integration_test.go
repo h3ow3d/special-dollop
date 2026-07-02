@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gorilla/securecookie"
 	"github.com/h3ow3d/special-dollop/internal/audit"
 	"github.com/h3ow3d/special-dollop/internal/domain"
+	"github.com/h3ow3d/special-dollop/internal/inventory"
 	"github.com/h3ow3d/special-dollop/internal/teams"
 	"github.com/h3ow3d/special-dollop/internal/users"
 )
@@ -107,6 +109,84 @@ func (r *testAuditRepo) ListByUser(_ context.Context, userID int64, limit int) (
 	return nil, nil
 }
 
+// ── fake inventory repository ──────────────────────────────────────────────
+
+type testInventoryRepo struct {
+	items  []*inventory.InventoryItem
+	nextID int64
+}
+
+func (r *testInventoryRepo) Create(_ context.Context, item *inventory.InventoryItem) error {
+	r.nextID++
+	item.ID = r.nextID
+	item.CreatedAt = time.Now()
+	item.UpdatedAt = time.Now()
+	cp := *item
+	r.items = append(r.items, &cp)
+	return nil
+}
+
+func (r *testInventoryRepo) GetByID(_ context.Context, id int64) (*inventory.InventoryItem, error) {
+	for _, item := range r.items {
+		if item.ID == id {
+			cp := *item
+			return &cp, nil
+		}
+	}
+	return nil, inventory.ErrNotFound
+}
+
+func (r *testInventoryRepo) Update(_ context.Context, item *inventory.InventoryItem) error {
+	for i, existing := range r.items {
+		if existing.ID == item.ID {
+			cp := *item
+			r.items[i] = &cp
+			return nil
+		}
+	}
+	return inventory.ErrNotFound
+}
+
+func (r *testInventoryRepo) SetActive(_ context.Context, id int64, active bool) error {
+	for _, item := range r.items {
+		if item.ID == id {
+			item.Active = active
+			return nil
+		}
+	}
+	return inventory.ErrNotFound
+}
+
+func (r *testInventoryRepo) List(_ context.Context) ([]*inventory.InventoryItemWithTeam, error) {
+	out := make([]*inventory.InventoryItemWithTeam, 0, len(r.items))
+	for _, item := range r.items {
+		cp := *item
+		out = append(out, &inventory.InventoryItemWithTeam{InventoryItem: cp})
+	}
+	return out, nil
+}
+
+func (r *testInventoryRepo) ListByTeam(_ context.Context, teamID int64) ([]*inventory.InventoryItemWithTeam, error) {
+	var out []*inventory.InventoryItemWithTeam
+	for _, item := range r.items {
+		if item.TeamID == teamID {
+			cp := *item
+			out = append(out, &inventory.InventoryItemWithTeam{InventoryItem: cp})
+		}
+	}
+	return out, nil
+}
+
+func (r *testInventoryRepo) CountByTeam(_ context.Context) (map[int64]int, error) {
+	counts := make(map[int64]int)
+	for _, item := range r.items {
+		if item.Active {
+			counts[item.TeamID]++
+		}
+	}
+	return counts, nil
+}
+
 func testRoles() []*users.Role {
 	return []*users.Role{
 		{ID: 1, Name: "Administrator", Slug: users.RoleSlugAdministrator},
@@ -141,6 +221,9 @@ func newRBACIntegrationHandler(t *testing.T) *Handler {
 	})
 	auditSvc := audit.NewService(&testAuditRepo{})
 	h.WithAdminHandler(NewAdminHandler(h, userSvc, teamSvc, auditSvc))
+
+	inventorySvc := inventory.NewService(&testInventoryRepo{})
+	h.WithInventoryHandler(NewInventoryHandler(h, inventorySvc, teamSvc, auditSvc))
 
 	return h
 }
@@ -251,4 +334,94 @@ func TestRBACIntegration_AuthenticatedAccessByRole(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ── Inventory RBAC tests ──────────────────────────────────────────────────────
+
+func TestRBACIntegration_InventoryVisibility(t *testing.T) {
+	h := newRBACIntegrationHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	tests := []struct {
+		name string
+		role string
+		want int
+	}{
+		{name: "reader can view inventory list", role: users.RoleSlugReader, want: http.StatusOK},
+		{name: "assessor can view inventory list", role: users.RoleSlugAssessor, want: http.StatusOK},
+		{name: "administrator can view inventory list", role: users.RoleSlugAdministrator, want: http.StatusOK},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := authenticatedRequest(t, http.MethodGet, "/inventory", tc.role)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+			if rr.Code != tc.want {
+				t.Fatalf("expected %d, got %d body=%s", tc.want, rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestRBACIntegration_InventoryCreateRoute(t *testing.T) {
+	h := newRBACIntegrationHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	t.Run("reader cannot access create form", func(t *testing.T) {
+		req := authenticatedRequest(t, http.MethodGet, "/inventory/new", users.RoleSlugReader)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for reader on /inventory/new, got %d", rr.Code)
+		}
+	})
+
+	t.Run("assessor can access create form", func(t *testing.T) {
+		req := authenticatedRequest(t, http.MethodGet, "/inventory/new", users.RoleSlugAssessor)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200 for assessor on /inventory/new, got %d", rr.Code)
+		}
+	})
+
+	t.Run("administrator can access create form", func(t *testing.T) {
+		req := authenticatedRequest(t, http.MethodGet, "/inventory/new", users.RoleSlugAdministrator)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200 for administrator on /inventory/new, got %d", rr.Code)
+		}
+	})
+}
+
+func TestRBACIntegration_InventoryUnauthenticated(t *testing.T) {
+	h := newRBACIntegrationHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	paths := []string{"/inventory", "/inventory/new"}
+	for _, path := range paths {
+		t.Run("unauthenticated redirected from "+path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+			if rr.Code != http.StatusFound {
+				t.Fatalf("expected 302 redirect, got %d", rr.Code)
+			}
+		})
+	}
+}
+
+func TestRBACIntegration_ReaderCannotStartAssessment(t *testing.T) {
+	h := newRBACIntegrationHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	t.Run("reader cannot access wizard/new", func(t *testing.T) {
+		req := authenticatedRequest(t, http.MethodGet, "/wizard/new", users.RoleSlugReader)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for reader on /wizard/new, got %d", rr.Code)
+		}
+	})
 }

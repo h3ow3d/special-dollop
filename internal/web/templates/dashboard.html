@@ -32,18 +32,47 @@
     {{/* ── Action cards ─────────────────────────────────────────────────── */}}
     <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
 
+      {{/* Inventory summary — all roles */}}
+      <div class="bg-white border rounded-lg p-6 flex flex-col gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">Inventory</h2>
+          <p class="text-sm text-slate-600 mt-1">
+            Registered software packages available for assessment.
+          </p>
+          {{if .inventoryByTeam}}
+          <dl class="mt-3 space-y-1 text-sm">
+            {{range .inventoryByTeam}}
+            <div class="flex justify-between">
+              <dt class="text-slate-600 truncate">{{.Name}}</dt>
+              <dd class="font-medium tabular-nums ml-4">{{.Count}}</dd>
+            </div>
+            {{end}}
+            <div class="flex justify-between border-t pt-1 mt-1">
+              <dt class="font-medium text-slate-900">Total</dt>
+              <dd class="font-semibold tabular-nums ml-4">{{.inventoryTotal}}</dd>
+            </div>
+          </dl>
+          {{else}}
+          <p class="text-sm text-slate-400 mt-2 italic">No inventory data available.</p>
+          {{end}}
+        </div>
+        <div class="mt-auto">
+          <a href="/inventory" class="inline-block text-sm font-medium text-blue-600 hover:text-blue-700">Open Inventory →</a>
+        </div>
+      </div>
+
       {{/* Start Assessment — Administrator + Assessor */}}
       {{if or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor")}}
       <div class="bg-white border rounded-lg p-6 flex flex-col gap-4">
         <div>
           <h2 class="text-lg font-semibold">Assessment Hub</h2>
           <p class="text-sm text-slate-600 mt-1">
-            Start a new suitability assessment and move into the guided workflow from a dedicated assessments space.
+            Start a new suitability assessment. Select a registered inventory item to begin the guided workflow.
           </p>
         </div>
         <div class="mt-auto">
-          <a href="/assessments" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-            Open Assessments →
+          <a href="/inventory" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+            Select Package to Assess →
           </a>
         </div>
       </div>

@@ -17,6 +17,7 @@ import (
 	"github.com/h3ow3d/special-dollop/internal/infra/oci"
 	"github.com/h3ow3d/special-dollop/internal/infra/security"
 	"github.com/h3ow3d/special-dollop/internal/infra/session"
+	"github.com/h3ow3d/special-dollop/internal/inventory"
 	"github.com/h3ow3d/special-dollop/internal/teams"
 	"github.com/h3ow3d/special-dollop/internal/users"
 	"github.com/h3ow3d/special-dollop/internal/web"
@@ -86,11 +87,13 @@ func main() {
 	roleRepo := users.NewRoleRepository(db)
 	teamRepo := teams.NewRepository(db)
 	auditRepo := audit.NewRepository(db)
+	inventoryRepo := inventory.NewRepository(db)
 
 	// Services
 	auditSvc := audit.NewService(auditRepo)
 	userSvc := users.NewService(userRepo, roleRepo)
 	teamSvc := teams.NewService(teamRepo)
+	inventorySvc := inventory.NewService(inventoryRepo)
 
 	// Auth enricher: upserts DB user after GitHub OAuth.
 	authSvc := auth.NewService(userSvc, teamRepo, auditSvc, auth.Config{
@@ -102,13 +105,17 @@ func main() {
 	adminHandler := web.NewAdminHandler(h, userSvc, teamSvc, auditSvc)
 	h.WithAdminHandler(adminHandler)
 
+	// Inventory handler
+	inventoryHandler := web.NewInventoryHandler(h, inventorySvc, teamSvc, auditSvc)
+	h.WithInventoryHandler(inventoryHandler)
+
 	// Bootstrap development users and teams when DEV_MODE=true.
 	if devMode {
-		seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+		seeder := bootstrap.NewSeeder(teamSvc, userSvc, inventorySvc)
 		if err := seeder.Seed(context.Background()); err != nil {
 			log.Fatalf("bootstrap: %v", err)
 		}
-		log.Println("bootstrap: development teams and users seeded")
+		log.Println("bootstrap: development teams, users, and inventory seeded")
 		loginSvc := bootstrap.NewLoginService(userSvc, teamRepo, auditSvc)
 		h.WithDevLoginService(loginSvc)
 	}

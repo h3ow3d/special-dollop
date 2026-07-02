@@ -76,6 +76,12 @@ return nil, ErrNotFound
 return state, nil
 }
 
+// UpdateState persists any in-place changes to the assessment state back to the
+// session store. It is a no-op if the state is not found.
+func (s *Service) UpdateState(state *domain.AssessmentState) {
+s.sessions.Set(state)
+}
+
 // UpdateSection saves the assessor's notes and evidence for a single section.
 func (s *Service) UpdateSection(id string, sectionName domain.SectionName, resp domain.SectionResponse) error {
 state, ok := s.sessions.Get(id)

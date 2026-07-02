@@ -1,0 +1,126 @@
+{{define "inventory_detail.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{{.item.Name}} – Inventory – CDSCAM Assurance Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
+  <main class="max-w-4xl mx-auto p-8 space-y-6">
+
+    {{/* ── Breadcrumb ───────────────────────────────────────────────────── */}}
+    <nav class="text-sm text-slate-500">
+      <a href="/inventory" class="hover:text-blue-600">Inventory</a>
+      <span class="mx-2">›</span>
+      <span class="text-slate-900 font-medium">{{.item.Name}}</span>
+    </nav>
+
+    {{/* ── Header ────────────────────────────────────────────────────────── */}}
+    <section class="bg-white border rounded-lg p-6 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-semibold">{{.item.Name}}</h1>
+            {{if .item.Active}}
+              <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+            {{else}}
+              <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">Inactive</span>
+            {{end}}
+          </div>
+          {{if .item.Description}}
+          <p class="text-sm text-slate-600 mt-2">{{.item.Description}}</p>
+          {{end}}
+        </div>
+        {{if .canEdit}}
+        <div class="flex gap-2 shrink-0">
+          <a href="/inventory/{{.item.ID}}/edit"
+             class="inline-block border border-slate-300 text-slate-700 px-3 py-1.5 rounded text-sm font-medium hover:bg-slate-50">
+            Edit
+          </a>
+          {{if .item.Active}}
+          <form method="post" action="/inventory/{{.item.ID}}/deactivate" class="inline">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+            <button class="border border-red-300 text-red-700 px-3 py-1.5 rounded text-sm font-medium hover:bg-red-50">
+              Deactivate
+            </button>
+          </form>
+          {{else}}
+          <form method="post" action="/inventory/{{.item.ID}}/activate" class="inline">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+            <button class="border border-green-300 text-green-700 px-3 py-1.5 rounded text-sm font-medium hover:bg-green-50">
+              Activate
+            </button>
+          </form>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+
+      <dl class="grid gap-4 sm:grid-cols-2 text-sm">
+        <div>
+          <dt class="font-medium text-slate-900">Owning Team</dt>
+          <dd class="text-slate-600 mt-0.5">{{if .team}}{{.team.Name}}{{else}}Unknown{{end}}</dd>
+        </div>
+        <div>
+          <dt class="font-medium text-slate-900">Registry</dt>
+          <dd class="text-slate-600 mt-0.5 font-mono">{{.item.Registry}}</dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="font-medium text-slate-900">Package URL</dt>
+          <dd class="text-slate-600 mt-0.5">
+            {{if .item.PackageURL}}
+            <a href="{{.item.PackageURL}}" target="_blank" rel="noopener noreferrer"
+               class="text-blue-600 hover:underline break-all">{{.item.PackageURL}}</a>
+            {{else}}—{{end}}
+          </dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="font-medium text-slate-900">Repository URL</dt>
+          <dd class="text-slate-600 mt-0.5">
+            {{if .item.RepositoryURL}}
+            <a href="{{.item.RepositoryURL}}" target="_blank" rel="noopener noreferrer"
+               class="text-blue-600 hover:underline break-all">{{.item.RepositoryURL}}</a>
+            {{else}}—{{end}}
+          </dd>
+        </div>
+        <div>
+          <dt class="font-medium text-slate-900">Created</dt>
+          <dd class="text-slate-600 mt-0.5">{{formatTime .item.CreatedAt}}</dd>
+        </div>
+        <div>
+          <dt class="font-medium text-slate-900">Last Updated</dt>
+          <dd class="text-slate-600 mt-0.5">{{formatTime .item.UpdatedAt}}</dd>
+        </div>
+      </dl>
+    </section>
+
+    {{/* ── Start Assessment ──────────────────────────────────────────────── */}}
+    {{if and .item.Active (or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor"))}}
+    <section class="bg-white border rounded-lg p-6 space-y-3">
+      <h2 class="text-lg font-semibold">Assessment</h2>
+      <p class="text-sm text-slate-600">
+        Start a suitability assessment for this inventory item. The assessment will be linked to this package for traceability.
+      </p>
+      <a href="/wizard/new?inventory_item_id={{.item.ID}}"
+         class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+        Start Assessment →
+      </a>
+    </section>
+    {{end}}
+
+    {{/* ── Future placeholder sections ────────────────────────────────────── */}}
+    <section class="bg-white border rounded-lg p-6 space-y-2 opacity-60">
+      <h2 class="text-base font-semibold text-slate-700">Evidence</h2>
+      <p class="text-sm text-slate-500">Evidence discovery will be available in a future release.</p>
+    </section>
+
+    <section class="bg-white border rounded-lg p-6 space-y-2 opacity-60">
+      <h2 class="text-base font-semibold text-slate-700">Attestations</h2>
+      <p class="text-sm text-slate-500">Published attestations for this package will appear here in a future release.</p>
+    </section>
+
+  </main>
+</body>
+</html>{{end}}

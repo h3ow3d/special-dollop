@@ -189,7 +189,7 @@ func newTestDeps(t *testing.T) (*fakeTeamRepo, *fakeUserRepo, *fakeAuditRepo, *t
 
 func TestSeed_CreatesTeams(t *testing.T) {
 	teamRepo, _, _, teamSvc, userSvc, _ := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
@@ -202,7 +202,7 @@ func TestSeed_CreatesTeams(t *testing.T) {
 
 func TestSeed_TeamNames(t *testing.T) {
 	_, _, _, teamSvc, userSvc, _ := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
@@ -222,7 +222,7 @@ func TestSeed_TeamNames(t *testing.T) {
 
 func TestSeed_CreatesUsers(t *testing.T) {
 	_, userRepo, _, teamSvc, userSvc, _ := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
@@ -235,7 +235,7 @@ func TestSeed_CreatesUsers(t *testing.T) {
 
 func TestSeed_Idempotent_Teams(t *testing.T) {
 	teamRepo, _, _, teamSvc, userSvc, _ := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("first Seed: %v", err)
@@ -251,7 +251,7 @@ func TestSeed_Idempotent_Teams(t *testing.T) {
 
 func TestSeed_Idempotent_Users(t *testing.T) {
 	_, userRepo, _, teamSvc, userSvc, _ := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("first Seed: %v", err)
@@ -267,7 +267,7 @@ func TestSeed_Idempotent_Users(t *testing.T) {
 
 func TestSeed_RoleAssignment(t *testing.T) {
 	_, userRepo, _, teamSvc, userSvc, _ := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
@@ -301,7 +301,7 @@ func TestSeed_RoleAssignment(t *testing.T) {
 
 func TestSeed_TeamAssignment(t *testing.T) {
 	_, userRepo, _, teamSvc, userSvc, _ := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
@@ -337,7 +337,7 @@ func TestSeed_TeamAssignment(t *testing.T) {
 
 func TestSeed_PreservesExistingTeamOnRerun(t *testing.T) {
 	_, userRepo, _, teamSvc, userSvc, _ := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 
 	// First seed
 	if err := seeder.Seed(context.Background()); err != nil {
@@ -379,7 +379,7 @@ func TestSeed_PreservesExistingTeamOnRerun(t *testing.T) {
 
 func TestDevLoginService_CreateSession(t *testing.T) {
 	teamRepo, _, _, teamSvc, userSvc, auditSvc := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
 	}
@@ -409,7 +409,7 @@ func TestDevLoginService_CreateSession(t *testing.T) {
 
 func TestDevLoginService_RecordsAuditEvent(t *testing.T) {
 	teamRepo, _, auditRepo, teamSvc, userSvc, auditSvc := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
 	}
@@ -430,7 +430,7 @@ func TestDevLoginService_RecordsAuditEvent(t *testing.T) {
 
 func TestDevLoginService_TeamName(t *testing.T) {
 	teamRepo, _, _, teamSvc, userSvc, auditSvc := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
 	}
@@ -480,7 +480,7 @@ func TestDevLoginService_UnseededUser(t *testing.T) {
 
 func TestDevLoginService_AllUsersSessionCreation(t *testing.T) {
 	teamRepo, _, _, teamSvc, userSvc, auditSvc := newTestDeps(t)
-	seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+	seeder := bootstrap.NewSeeder(teamSvc, userSvc, nil)
 	if err := seeder.Seed(context.Background()); err != nil {
 		t.Fatalf("Seed: %v", err)
 	}
