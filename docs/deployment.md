@@ -18,9 +18,8 @@
 
 The docker compose stack starts:
 - `clph-web` — the Go web application
-- `registry` — a local OCI registry (CNCF Distribution, port 5000)
 
-No database service is required.
+No database service is required. No local registry is required. The application connects directly to GitHub APIs and GitHub Container Registry (GHCR).
 
 ## Environment Variables
 

@@ -21,6 +21,25 @@ The only runtime state is:
 | Rationale | string | Assessor-provided rationale |
 | CreatedAt / UpdatedAt | time.Time | Timestamps for the attestation |
 
+## User (in-memory, stored in session cookie)
+
+| Field | Type | Description |
+|---|---|---|
+| GitHubUsername | string | GitHub login |
+| DisplayName | string | GitHub display name (falls back to login) |
+| Email | string | Primary verified email |
+| Organisation | string | Primary GitHub organisation |
+| TeamMembership | []string | GitHub team slugs within the organisation |
+| OIDCSubject | string | e.g. "github:username" |
+
+## SectionResponse (value in Sections map)
+
+| Field | Type | Description |
+|---|---|---|
+| Notes | string | Assessor's free-text notes |
+| DiscussionNotes | string | Additional discussion points and follow-up items |
+| Evidence | []EvidenceRef | Referenced evidence items |
+
 ## Authoritative Record
 
 The completed assessment is transformed into a signed in-toto attestation and attached to the selected OCI artefact. **The OCI-attached attestation is the system of record.** No separate storage is required.

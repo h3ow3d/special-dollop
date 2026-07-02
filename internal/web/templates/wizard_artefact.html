@@ -36,17 +36,17 @@
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Registry <span class="text-red-500">*</span></label>
-          <input name="artefact_registry" required placeholder="registry.local:5000" class="border rounded p-2 w-full" />
+          <input name="artefact_registry" required placeholder="ghcr.io" class="border rounded p-2 w-full" />
         </div>
         <div class="col-span-2">
           <label class="block text-sm font-medium mb-1">Full Reference</label>
-          <input name="artefact_reference" placeholder="registry.local/repo:tag or repo@sha256:..." class="border rounded p-2 w-full" />
-          <p class="text-xs text-slate-500 mt-1">Use <a href="/oci/discover" target="_blank" class="underline">OCI Discovery</a> to browse and resolve the digest.</p>
+          <input name="artefact_reference" placeholder="ghcr.io/company/orders-api:v1.2.3 or @sha256:..." class="border rounded p-2 w-full" />
+          <p class="text-xs text-slate-500 mt-1">Use <a href="/oci/discover" target="_blank" class="underline">OCI Discovery</a> to browse GHCR repositories and resolve the digest.</p>
         </div>
         <div class="col-span-2">
           <label class="block text-sm font-medium mb-1">Artefact Digest <span class="text-red-500">*</span></label>
           <input name="artefact_digest" required placeholder="sha256:..." class="border rounded p-2 w-full font-mono text-sm" />
-          <p class="text-xs text-slate-500 mt-1">The digest pins the exact artefact. Run <code>crane digest &lt;ref&gt;</code> or use the OCI Discovery page.</p>
+          <p class="text-xs text-slate-500 mt-1">The digest pins the exact artefact. Run <code>crane digest &lt;ref&gt;</code> or use the OCI Discovery page to resolve it from GHCR.</p>
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Review Date</label>

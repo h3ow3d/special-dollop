@@ -12,11 +12,3 @@ services:
       GITHUB_REDIRECT_URL: ${GITHUB_REDIRECT_URL:-http://localhost:8080/auth/callback}
     ports:
       - "8080:8080"
-    depends_on:
-      - registry
-
-  registry:
-    image: registry:2
-    container_name: clph-registry
-    ports:
-      - "5000:5000"

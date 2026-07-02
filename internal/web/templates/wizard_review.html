@@ -27,6 +27,7 @@
     <section class="bg-white border rounded p-4 text-sm">
       <h2 class="font-medium">{{$meta.Label}}</h2>
       {{if $resp.Notes}}<p class="mt-1 text-slate-700">{{$resp.Notes}}</p>{{else}}<p class="mt-1 text-slate-400 italic">No notes recorded.</p>{{end}}
+      {{if $resp.DiscussionNotes}}<p class="mt-1 text-slate-600 italic text-xs"><strong>Discussion:</strong> {{$resp.DiscussionNotes}}</p>{{end}}
       {{if $resp.Evidence}}
       <ul class="mt-2 space-y-0.5 text-xs text-slate-500">
         {{range $resp.Evidence}}<li>• {{.Reference}}</li>{{end}}

@@ -82,9 +82,10 @@ Participants []participantEntry      `json:"participants"`
 }
 
 type sectionEntry struct {
-Label    string          `json:"label"`
-Notes    string          `json:"notes"`
-Evidence []evidenceEntry `json:"evidence,omitempty"`
+Label           string          `json:"label"`
+Notes           string          `json:"notes"`
+DiscussionNotes string          `json:"discussionNotes,omitempty"`
+Evidence        []evidenceEntry `json:"evidence,omitempty"`
 }
 
 type evidenceEntry struct {
@@ -99,9 +100,12 @@ Organisation string `json:"organisation"`
 }
 
 type identityMetadata struct {
-GitHubUsername string `json:"githubUsername"`
-Email          string `json:"email"`
-OIDCSubject    string `json:"oidcSubject"`
+GitHubUsername string   `json:"githubUsername"`
+DisplayName    string   `json:"displayName"`
+Email          string   `json:"email"`
+Organisation   string   `json:"organisation,omitempty"`
+TeamMembership []string `json:"teamMembership,omitempty"`
+OIDCSubject    string   `json:"oidcSubject"`
 }
 
 func buildStatement(state *domain.AssessmentState) inTotoStatement {
@@ -118,9 +122,10 @@ ev = append(ev, evidenceEntry{Reference: e.Reference, Reviewed: e.Reviewed})
 }
 }
 sections[string(name)] = sectionEntry{
-Label:    meta.Label,
-Notes:    resp.Notes,
-Evidence: ev,
+Label:           meta.Label,
+Notes:           resp.Notes,
+DiscussionNotes: resp.DiscussionNotes,
+Evidence:        ev,
 }
 }
 
@@ -168,7 +173,10 @@ Participants: participants,
 },
 IdentityMetadata: identityMetadata{
 GitHubUsername: state.User.GitHubUsername,
+DisplayName:    state.User.DisplayName,
 Email:          state.User.Email,
+Organisation:   state.User.Organisation,
+TeamMembership: state.User.TeamMembership,
 OIDCSubject:    state.User.OIDCSubject,
 },
 },
