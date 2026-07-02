@@ -59,7 +59,7 @@ No database service is required. No local registry is required. The application 
 | `CSRF_AUTH_KEY` | Yes | 32-byte key for CSRF token signing (hex or raw) |
 | `SESSION_SECRET` | Yes | 32-byte key for session cookie signing |
 | `SECURE_COOKIES` | No | Set to `"true"` in production (HTTPS). Default: `"false"` |
-| `DEV_MODE` | No | Enables development-only debug tooling and development login. Session impersonation controls are available only for GitHub OAuth sessions. Default: `"false"` |
+| `DEV_MODE` | No | Enables development-only debug tooling and development login. Default: `"false"` |
 | `BOOTSTRAP_ADMINS` | No | Comma-separated GitHub usernames that should be provisioned as Administrators on first login. Intended for development/POC use only. |
 | `OCI_USERNAME` | Conditional | Registry username for attestation publication. Required for authenticated registries such as GHCR. |
 | `OCI_PASSWORD` | Conditional | Registry password or token for attestation publication. For GHCR, use a token with package write access. |

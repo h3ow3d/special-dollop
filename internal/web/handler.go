@@ -207,10 +207,6 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 			}
 		})
 
-		if h.devMode {
-			pr.Post("/dev/impersonate-role", h.impersonateRole)
-			pr.Post("/dev/impersonate-user", h.impersonateUser)
-		}
 	})
 
 	return r
@@ -545,11 +541,6 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, name string, da
 	}
 	data["authenticated"] = hasSession
 	data["showDevPanel"] = h.devMode
-	if h.devMode && h.admin != nil {
-		if devUsers, err := h.admin.userSvc.List(r.Context()); err == nil {
-			data["devUsers"] = devUsers
-		}
-	}
 	data["requestURI"] = r.URL.RequestURI()
 	if err := h.tmpl.ExecuteTemplate(w, name, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

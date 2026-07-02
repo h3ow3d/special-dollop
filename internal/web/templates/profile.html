@@ -73,12 +73,6 @@
             <dt class="font-medium text-slate-900">Status</dt>
             <dd class="text-slate-600">{{if .session.Active}}Active{{else}}Inactive{{end}}</dd>
           </div>
-          {{if .session.IsImpersonating}}
-          <div>
-            <dt class="font-medium text-slate-900">Development impersonation</dt>
-            <dd class="text-slate-600">Active for this session.</dd>
-          </div>
-          {{end}}
         </dl>
       </section>
     </div>
