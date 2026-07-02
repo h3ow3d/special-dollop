@@ -17,13 +17,20 @@
 | Method | Path | Description | Roles |
 |---|---|---|---|
 | GET | `/dashboard` | Authenticated landing page — role-aware cards and identity summary | Administrator, Assessor, Reader |
+| GET | `/profile` | Authenticated profile page for the current user | Administrator, Assessor, Reader |
 | GET | `/wizard` | Redirects to `/dashboard` (kept for backwards compatibility) | Administrator, Assessor, Reader |
+
+### Assessments
+
+| Method | Path | Description | Roles |
+|---|---|---|---|
+| GET | `/assessments` | Assessment hub with links into the guided workflow and OCI discovery | Administrator, Assessor |
 
 ### Assessments (Wizard)
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/wizard/new` | Artefact Information form (step 1) | Administrator, Assessor, Reader |
+| GET | `/wizard/new` | Artefact Information form (step 1) | Administrator, Assessor |
 | POST | `/wizard/new` | Submit step 1, create in-memory AssessmentState, redirect to step 2 | Administrator, Assessor |
 | GET | `/wizard/{id}/step/{n}` | Render wizard step n (2–10) | Administrator, Assessor, Reader |
 | POST | `/wizard/{id}/step/{n}` | Submit wizard step n | Administrator, Assessor |

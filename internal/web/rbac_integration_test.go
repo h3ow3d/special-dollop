@@ -233,7 +233,10 @@ func TestRBACIntegration_AuthenticatedAccessByRole(t *testing.T) {
 		path   string
 		want   int
 	}{
+		{name: "reader profile page", role: users.RoleSlugReader, method: http.MethodGet, path: "/profile", want: http.StatusOK},
 		{name: "reader inventory page", role: users.RoleSlugReader, method: http.MethodGet, path: "/oci/discover", want: http.StatusOK},
+		{name: "reader assessments forbidden", role: users.RoleSlugReader, method: http.MethodGet, path: "/assessments", want: http.StatusForbidden},
+		{name: "assessor assessments page", role: users.RoleSlugAssessor, method: http.MethodGet, path: "/assessments", want: http.StatusOK},
 		{name: "assessor assessment page", role: users.RoleSlugAssessor, method: http.MethodGet, path: "/wizard/new", want: http.StatusOK},
 		{name: "administrator teams page", role: users.RoleSlugAdministrator, method: http.MethodGet, path: "/admin/teams", want: http.StatusOK},
 	}
