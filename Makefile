@@ -1,13 +1,13 @@
 .PHONY: run test build docker-up
 
 run:
-go run ./cmd/clph-web
+	go run ./cmd/clph-web
 
 test:
-go test ./...
+	go test ./...
 
 build:
-go build ./...
+	go build ./...
 
 docker-up:
-docker compose up --build
+	docker compose up --build
