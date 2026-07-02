@@ -30,7 +30,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
-If you upgraded from an earlier local setup, the stack now uses a new Postgres volume (`pgdata_v18`) to avoid incompatible old data layouts.
+If you upgraded from an earlier local setup, the stack now uses a new Postgres volume (`pgdata_v18`) to avoid incompatible Postgres data directory layouts carried over from older local images.
+If you need old local DB data, export it first (for example with `pg_dump`) and restore it into the new volume.
 If you do not need old local DB data, remove the previous volume (replace `<project-name>` with your Compose project name, which defaults to the directory name):
 
 ```bash
