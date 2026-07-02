@@ -46,6 +46,7 @@ type UserSession struct {
 	LastVisitedPath      string
 	TeamID               *int64 // nil when no team is assigned
 	TeamName             string // empty when no team is assigned
+	AuthSource           string // "" for GitHub OAuth; "dev" for development login
 	LoginAt              time.Time
 	Active               bool
 }

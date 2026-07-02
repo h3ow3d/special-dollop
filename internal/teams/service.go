@@ -13,6 +13,21 @@ type Service struct {
 // NewService creates a Service backed by the provided Repository.
 func NewService(repo Repository) *Service { return &Service{repo: repo} }
 
+// GetOrCreate returns the existing team with the given name, or creates a new
+// one if no team with that name exists. It is safe to call multiple times.
+func (s *Service) GetOrCreate(ctx context.Context, name, description string) (*Team, error) {
+	ts, err := s.repo.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list teams: %w", err)
+	}
+	for _, t := range ts {
+		if t.Name == name {
+			return t, nil
+		}
+	}
+	return s.Create(ctx, name, description)
+}
+
 // Create persists a new team.
 func (s *Service) Create(ctx context.Context, name, description string) (*Team, error) {
 	t := &Team{Name: name, Description: description, Active: true}

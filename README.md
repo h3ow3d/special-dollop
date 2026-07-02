@@ -86,6 +86,81 @@ These are convenience copies. The OCI-attached attestation is the authoritative 
 - Content-Security-Policy and hardened response headers
 - Configurable `Secure` cookie flag (set `SECURE_COOKIES=true` in production)
 
+## Development mode (`DEV_MODE=true`)
+
+When `DEV_MODE=true` the application automatically seeds a set of development
+teams and users on startup, and exposes a development login form on the home
+page.  **Do not enable this in production.**
+
+### Bootstrap teams
+
+Four teams are created idempotently at startup:
+
+| Team | Description |
+|------|-------------|
+| Platform Team | Platform engineering and shared services |
+| Applications Team | Business applications and services |
+| Security Team | Security tooling, governance and assurance |
+| Data Team | Data platforms and analytics services |
+
+### Bootstrap users
+
+Ten users are created idempotently at startup, one per role/team combination
+needed for POC testing:
+
+| Display name | Username | Role | Team |
+|---|---|---|---|
+| Sam Holden | sam.holden | Administrator | Platform Team |
+| Alex Carter | alex.carter | Assessor | Platform Team |
+| Jordan Smith | jordan.smith | Reader | Platform Team |
+| Taylor Brown | taylor.brown | Assessor | Applications Team |
+| Morgan Wilson | morgan.wilson | Reader | Applications Team |
+| Jamie Walker | jamie.walker | Reader | Applications Team |
+| Casey Thomas | casey.thomas | Assessor | Security Team |
+| Riley White | riley.white | Reader | Security Team |
+| Avery Green | avery.green | Assessor | Data Team |
+| Drew Hall | drew.hall | Reader | Data Team |
+
+All users are active and have `@dev.local` e-mail addresses.  Seeding is
+idempotent — running the application multiple times will not create
+duplicates, and any manual changes made to dev users after first boot are
+preserved on subsequent restarts.
+
+### Development login workflow
+
+A **Development Login** panel is shown on the home page.  Select any
+bootstrap user from the dropdown and click **Sign In**.  A normal
+authenticated session is created — the same session model, RBAC rules and
+audit logging that apply to GitHub OAuth users apply equally to development
+sessions.
+
+Once signed in, a **Developer Tools** panel in the top navigation bar shows:
+
+- **Current User** — display name
+- **Role** — current effective role
+- **Team** — assigned team
+- **Authentication Source** — `Development Login` (or `GitHub OAuth`)
+
+The panel also exposes the existing role-impersonation feature for
+session-scoped RBAC testing.
+
+Audit events `dev.login` and `dev.logout` are recorded whenever a
+development user signs in or out.
+
+### Purpose
+
+The development identities provide a realistic organisation structure for
+testing RBAC, administration, team management and user management workflows
+during the POC without needing multiple GitHub accounts, direct database
+edits or manual user creation.
+
+### Disabling the feature
+
+Set `DEV_MODE=false` (or remove the variable entirely — the default is
+`false`).  No bootstrap users or teams will be created, the development
+login panel will not appear and no `dev.login`/`dev.logout` audit events
+will be emitted.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)

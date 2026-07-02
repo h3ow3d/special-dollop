@@ -19,6 +19,25 @@
     <a class="inline-block bg-slate-900 text-white px-6 py-3 rounded-lg font-medium" href="/auth/login">
       Sign in with GitHub
     </a>
+    {{if .devLoginUsers}}
+    <div class="bg-amber-50 border border-amber-200 rounded p-4 text-left space-y-3">
+      <h2 class="font-semibold text-sm text-amber-900">Development Login</h2>
+      <p class="text-xs text-amber-800">DEV_MODE is enabled. Select a bootstrap user to sign in without GitHub.</p>
+      <form method="post" action="/dev/login" class="space-y-3">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+        <label class="block text-sm font-medium text-amber-900">Login as:</label>
+        <select name="dev_username" class="w-full border rounded px-3 py-2 text-sm bg-white" required>
+          <option value="" disabled selected>— select a user —</option>
+          {{range .devLoginUsers}}
+          <option value="{{.Username}}">{{.DisplayName}}</option>
+          {{end}}
+        </select>
+        <button type="submit" class="w-full bg-amber-700 text-white px-4 py-2 rounded text-sm font-medium hover:bg-amber-800">
+          Sign In
+        </button>
+      </form>
+    </div>
+    {{end}}
   </main>
 </body>
 </html>{{end}}

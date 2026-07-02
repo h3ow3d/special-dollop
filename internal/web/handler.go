@@ -25,11 +25,12 @@ var templateFS embed.FS
 
 // Handler wires HTTP routes to the assessment wizard service.
 type Handler struct {
-	svc     *app.Service
-	oauth   *security.OAuthHandler
-	tmpl    *template.Template
-	admin   *AdminHandler // optional; nil when DB is not configured
-	devMode bool
+	svc         *app.Service
+	oauth       *security.OAuthHandler
+	tmpl        *template.Template
+	admin       *AdminHandler // optional; nil when DB is not configured
+	devMode     bool
+	devLoginSvc DevLoginProvider // optional; non-nil when devMode=true and DB available
 }
 
 // NewHandler creates a Handler, parsing all embedded templates.
@@ -51,6 +52,13 @@ func (h *Handler) WithAdminHandler(admin *AdminHandler) *Handler {
 // WithDevelopmentMode enables or disables development-only UI affordances.
 func (h *Handler) WithDevelopmentMode(enabled bool) *Handler {
 	h.devMode = enabled
+	return h
+}
+
+// WithDevLoginService attaches the dev login provider used to authenticate
+// bootstrap users without GitHub OAuth. Only effective when devMode=true.
+func (h *Handler) WithDevLoginService(svc DevLoginProvider) *Handler {
+	h.devLoginSvc = svc
 	return h
 }
 
@@ -135,6 +143,10 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 	r.Get("/auth/callback", h.oauth.HandleCallback)
 	r.Get("/auth/logout", h.logout)
 	r.Post("/auth/logout", h.logout)
+	if h.devMode {
+		r.Get("/dev/login", h.devLogin)
+		r.Post("/dev/login", h.devLoginPost)
+	}
 
 	// Protected routes
 	r.Group(func(pr chi.Router) {
@@ -202,7 +214,11 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/dashboard", http.StatusFound)
 		return
 	}
-	h.render(w, r, "index.html", nil)
+	data := map[string]any{}
+	if h.devMode && h.devLoginSvc != nil {
+		data["devLoginUsers"] = h.devLoginSvc.Users()
+	}
+	h.render(w, r, "index.html", data)
 }
 
 func (h *Handler) dashboard(w http.ResponseWriter, r *http.Request) {
@@ -214,7 +230,11 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	if h.admin != nil {
 		if session, ok := security.SessionFromContext(r.Context()); ok && session.UserID != 0 {
 			id := session.UserID
-			h.admin.auditSvc.Record(r.Context(), &id, audit.ActionLogout, nil, r.RemoteAddr)
+			action := audit.ActionLogout
+			if session.AuthSource == "dev" {
+				action = audit.ActionDevLogout
+			}
+			h.admin.auditSvc.Record(r.Context(), &id, action, nil, r.RemoteAddr)
 		}
 	}
 	http.SetCookie(w, &http.Cookie{
