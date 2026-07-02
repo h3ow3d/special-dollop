@@ -66,13 +66,6 @@
 | GET | `/auth/logout` | Clear session cookie and redirect to `/` | Administrator, Assessor, Reader |
 | POST | `/auth/logout` | Clear session cookie and redirect to `/` | Administrator, Assessor, Reader |
 
-## Development Only (`DEV_MODE=true`)
-
-| Method | Path | Description | Roles |
-|---|---|---|---|
-| POST | `/dev/impersonate-role` | Change the session-only effective role for local development (GitHub OAuth sessions only) | Administrator, Assessor, Reader |
-| POST | `/dev/impersonate-user` | Change the session-only effective user/role/team for local development (GitHub OAuth sessions only) | Administrator, Assessor, Reader |
-
 ## Administrator
 
 | Method | Path | Description |

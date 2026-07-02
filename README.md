@@ -141,10 +141,6 @@ Once signed in, a **Developer Tools** panel in the top navigation bar shows:
 - **Team** — assigned team
 - **Authentication Source** — `Development Login` (or `GitHub OAuth`)
 
-For GitHub OAuth sessions, the panel also exposes role/user impersonation for
-session-scoped RBAC testing. Development-login sessions do not expose
-impersonation controls.
-
 Audit events `dev.login` and `dev.logout` are recorded whenever a
 development user signs in or out.
 
