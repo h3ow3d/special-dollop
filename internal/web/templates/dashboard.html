@@ -35,11 +35,11 @@
       {{/* Inventory summary — all roles */}}
       <div class="bg-white border rounded-lg p-6 flex flex-col gap-4">
         <div>
-          <h2 class="text-lg font-semibold">Inventory</h2>
+          <h2 class="text-lg font-semibold">{{if .inventoryAdminView}}Inventory By Team{{else}}My Team Inventory{{end}}</h2>
           <p class="text-sm text-slate-600 mt-1">
-            Registered software packages available for assessment.
+            {{if .inventoryAdminView}}Registered software packages available for assessment by team.{{else}}Registered software packages available for assessment for your team.{{end}}
           </p>
-          {{if .inventoryByTeam}}
+          {{if and .inventoryAdminView .inventoryByTeam}}
           <dl class="mt-3 space-y-1 text-sm">
             {{range .inventoryByTeam}}
             <div class="flex justify-between">
@@ -52,6 +52,15 @@
               <dd class="font-semibold tabular-nums ml-4">{{.inventoryTotal}}</dd>
             </div>
           </dl>
+          {{else if .inventoryByTeam}}
+          {{with index .inventoryByTeam 0}}
+          <dl class="mt-3 space-y-1 text-sm">
+            <div class="space-y-1">
+              <dt class="font-medium text-slate-900">{{.Name}}</dt>
+              <dd class="text-slate-600">Registered Packages: <span class="font-semibold tabular-nums">{{.Count}}</span></dd>
+            </div>
+          </dl>
+          {{end}}
           {{else}}
           <p class="text-sm text-slate-400 mt-2 italic">No inventory data available.</p>
           {{end}}

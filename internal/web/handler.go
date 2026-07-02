@@ -27,13 +27,13 @@ var templateFS embed.FS
 
 // Handler wires HTTP routes to the assessment wizard service.
 type Handler struct {
-	svc           *app.Service
-	oauth         *security.OAuthHandler
-	tmpl          *template.Template
-	admin         *AdminHandler      // optional; nil when DB is not configured
-	inventory     *InventoryHandler  // optional; nil when DB is not configured
-	devMode       bool
-	devLoginSvc   DevLoginProvider // optional; non-nil when devMode=true and DB available
+	svc         *app.Service
+	oauth       *security.OAuthHandler
+	tmpl        *template.Template
+	admin       *AdminHandler     // optional; nil when DB is not configured
+	inventory   *InventoryHandler // optional; nil when DB is not configured
+	devMode     bool
+	devLoginSvc DevLoginProvider // optional; non-nil when devMode=true and DB available
 }
 
 // NewHandler creates a Handler, parsing all embedded templates.
@@ -244,25 +244,42 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) dashboard(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{}
+	session, _ := security.SessionFromContext(r.Context())
+	isAdmin := session.EffectiveRoleSlug() == string(rbac.RoleAdministrator)
+	data["inventoryAdminView"] = isAdmin
 	if h.inventory != nil {
 		counts, err := h.inventory.inventorySvc.CountByTeam(r.Context())
 		if err == nil {
-			ts, err := h.inventory.teamSvc.List(r.Context())
-			if err == nil {
+			if isAdmin {
+				ts, err := h.inventory.teamSvc.List(r.Context())
+				if err == nil {
+					type teamCount struct {
+						Name  string
+						Count int
+					}
+					rows := make([]teamCount, 0, len(ts))
+					total := 0
+					for _, t := range ts {
+						c := counts[t.ID]
+						rows = append(rows, teamCount{Name: t.Name, Count: c})
+						total += c
+					}
+					data["inventoryByTeam"] = rows
+					data["inventoryTotal"] = total
+					data["teamTotal"] = len(ts)
+				}
+			} else if session.TeamID != nil {
+				myTeamName := session.EffectiveTeamName()
+				if myTeamName == "" {
+					if t, err := h.inventory.teamSvc.GetByID(r.Context(), *session.TeamID); err == nil {
+						myTeamName = t.Name
+					}
+				}
 				type teamCount struct {
 					Name  string
 					Count int
 				}
-				rows := make([]teamCount, 0, len(ts))
-				total := 0
-				for _, t := range ts {
-					c := counts[t.ID]
-					rows = append(rows, teamCount{Name: t.Name, Count: c})
-					total += c
-				}
-				data["inventoryByTeam"] = rows
-				data["inventoryTotal"] = total
-				data["teamTotal"] = len(ts)
+				data["inventoryByTeam"] = []teamCount{{Name: myTeamName, Count: counts[*session.TeamID]}}
 			}
 		}
 	}
