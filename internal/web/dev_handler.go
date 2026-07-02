@@ -86,8 +86,14 @@ func sanitizeReturnTarget(v string) string {
 	if err != nil || !strings.HasPrefix(decodedPath, "/") || strings.HasPrefix(decodedPath, "//") || strings.Contains(decodedPath, "\\") {
 		return ""
 	}
+	if len(decodedPath) > 1 && (decodedPath[1] == '/' || decodedPath[1] == '\\') {
+		return ""
+	}
 	cleanedPath := path.Clean(decodedPath)
 	if cleanedPath == "." || !strings.HasPrefix(cleanedPath, "/") || strings.HasPrefix(cleanedPath, "//") || !hasAllowedDevReturnPrefix(cleanedPath) {
+		return ""
+	}
+	if len(cleanedPath) > 1 && (cleanedPath[1] == '/' || cleanedPath[1] == '\\') {
 		return ""
 	}
 	if u.RawQuery != "" {
