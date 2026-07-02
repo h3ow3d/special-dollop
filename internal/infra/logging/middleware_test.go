@@ -19,8 +19,8 @@ type captureHandler struct {
 }
 
 func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
-func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler        { return h }
-func (h *captureHandler) WithGroup(string) slog.Handler             { return h }
+func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler       { return h }
+func (h *captureHandler) WithGroup(string) slog.Handler            { return h }
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	entry := map[string]any{"msg": r.Message}
 	r.Attrs(func(attr slog.Attr) bool {
