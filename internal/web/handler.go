@@ -83,7 +83,7 @@ r.Use(middleware.Recoverer)
 r.Use(middleware.Timeout(30 * time.Second))
 r.Use(security.SecurityHeaders)
 r.Use(h.oauth.AuthMiddleware)
-r.Use(csrf.Protect(csrfKey, csrf.Secure(false), csrf.CookieName("clph_csrf")))
+r.Use(csrf.Protect(csrfKey, csrf.Secure(h.oauth.SecureCookies()), csrf.CookieName("clph_csrf")))
 
 // Health probes
 r.Get("/health/live", func(w http.ResponseWriter, _ *http.Request) {
