@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS roles (
+    id         BIGSERIAL PRIMARY KEY,
+    name       VARCHAR(64)  NOT NULL UNIQUE,
+    slug       VARCHAR(64)  NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);

@@ -1,0 +1,49 @@
+{{define "admin_roles.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Roles – CDSCAM</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <a href="/wizard" class="font-semibold">CDSCAM</a>
+    <nav class="flex gap-4 text-sm">
+      <a href="/admin/users" class="hover:text-blue-600">Users</a>
+      <a href="/admin/teams" class="hover:text-blue-600">Teams</a>
+      <a href="/admin/roles" class="font-medium text-blue-600">Roles</a>
+    </nav>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-2xl mx-auto p-8 space-y-6">
+    <h1 class="text-2xl font-semibold">Roles</h1>
+    <p class="text-slate-600 text-sm">Roles are seeded automatically and cannot be modified.</p>
+    <div class="bg-white border rounded overflow-hidden">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-100 text-left">
+          <tr>
+            <th class="px-4 py-2 font-medium">Name</th>
+            <th class="px-4 py-2 font-medium">Slug</th>
+            <th class="px-4 py-2 font-medium">Permissions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {{range .roles}}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-2 font-medium">{{.Name}}</td>
+            <td class="px-4 py-2 font-mono text-slate-600">{{.Slug}}</td>
+            <td class="px-4 py-2 text-slate-600">
+              {{if eq .Slug "administrator"}}Manage users, teams, inventory, platform configuration{{end}}
+              {{if eq .Slug "assessor"}}View inventory, create/edit assessments, view evidence{{end}}
+              {{if eq .Slug "reader"}}View inventory, assessments, evidence{{end}}
+            </td>
+          </tr>
+          {{else}}
+          <tr><td colspan="3" class="px-4 py-6 text-center text-slate-500">No roles found.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>{{end}}

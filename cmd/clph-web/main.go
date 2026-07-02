@@ -8,10 +8,15 @@ import (
 	"time"
 
 	"github.com/h3ow3d/special-dollop/internal/app"
+	"github.com/h3ow3d/special-dollop/internal/audit"
+	"github.com/h3ow3d/special-dollop/internal/auth"
+	"github.com/h3ow3d/special-dollop/internal/database"
 	"github.com/h3ow3d/special-dollop/internal/infra/attestation"
 	"github.com/h3ow3d/special-dollop/internal/infra/oci"
 	"github.com/h3ow3d/special-dollop/internal/infra/security"
 	"github.com/h3ow3d/special-dollop/internal/infra/session"
+	"github.com/h3ow3d/special-dollop/internal/teams"
+	"github.com/h3ow3d/special-dollop/internal/users"
 	"github.com/h3ow3d/special-dollop/internal/web"
 )
 
@@ -57,6 +62,39 @@ func main() {
 	if err != nil {
 		log.Fatalf("handler: %v", err)
 	}
+
+	// PostgreSQL – required; provided by the Docker Compose stack.
+	dsn := getenv("DATABASE_URL", "")
+	if dsn == "" {
+		log.Fatalf("DATABASE_URL is required – start the application via Docker Compose so the database is available")
+	}
+	db, err := database.Open(dsn)
+	if err != nil {
+		log.Fatalf("database: %v", err)
+	}
+	if err := database.RunMigrations(db); err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+	log.Println("database: migrations applied")
+
+	// Repositories
+	userRepo := users.NewUserRepository(db)
+	roleRepo := users.NewRoleRepository(db)
+	teamRepo := teams.NewRepository(db)
+	auditRepo := audit.NewRepository(db)
+
+	// Services
+	auditSvc := audit.NewService(auditRepo)
+	userSvc := users.NewService(userRepo, roleRepo)
+	teamSvc := teams.NewService(teamRepo)
+
+	// Auth enricher: upserts DB user after GitHub OAuth.
+	authSvc := auth.NewService(userSvc, teamRepo, auditSvc)
+	oauthHandler.WithEnricher(authSvc)
+
+	// Admin handler
+	adminHandler := web.NewAdminHandler(h, userSvc, teamSvc, auditSvc)
+	h.WithAdminHandler(adminHandler)
 
 	csrfKey := []byte(padTo32(getenv("CSRF_AUTH_KEY", "replace-me-with-32-byte-csrf-secret")))
 	addr := getenv("HTTP_ADDR", ":8080")
