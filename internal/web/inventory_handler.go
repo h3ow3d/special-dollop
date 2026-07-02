@@ -117,7 +117,11 @@ func (ih *InventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 		"csrf":         csrf.Token(r),
 	}
 	if isAdmin {
-		ts, _ := ih.teamSvc.List(r.Context())
+		ts, err := ih.teamSvc.List(r.Context())
+		if err != nil {
+			http.Error(w, "failed to list teams: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		data["teams"] = ts
 	}
 	ih.tmpl.render(w, r, "inventory_list.html", data)
