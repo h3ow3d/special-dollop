@@ -1,65 +1,285 @@
+// Package security provides GitHub OAuth authentication and security middleware.
 package security
 
 import (
-	"context"
-	"net/http"
-	"strings"
+"context"
+"crypto/rand"
+"encoding/hex"
+"encoding/json"
+"fmt"
+"io"
+"net/http"
+"net/url"
 
-	"github.com/h3ow3d/special-dollop/internal/domain"
+"github.com/gorilla/securecookie"
+"github.com/h3ow3d/special-dollop/internal/domain"
 )
 
 type ctxKey string
 
 const userKey ctxKey = "currentUser"
 
+// UserFromContext retrieves the authenticated user from the request context.
 func UserFromContext(ctx context.Context) (domain.User, bool) {
-	u, ok := ctx.Value(userKey).(domain.User)
-	return u, ok
+u, ok := ctx.Value(userKey).(domain.User)
+return u, ok
 }
 
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("clph_session")
-		if err != nil || cookie.Value == "" {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, domain.User{Role: domain.RoleViewer})))
-			return
-		}
-		parts := strings.Split(cookie.Value, "|")
-		if len(parts) < 4 {
-			http.Error(w, "invalid session", http.StatusUnauthorized)
-			return
-		}
-		u := domain.User{GitHubUser: parts[0], Email: parts[1], OIDCSubject: parts[2], Role: domain.Role(parts[3]), DisplayName: parts[0]}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
-	})
+// GitHubOAuthConfig holds GitHub OAuth2 application credentials.
+type GitHubOAuthConfig struct {
+ClientID     string
+ClientSecret string
+RedirectURL  string
 }
 
-func RequireRole(roles ...domain.Role) func(http.Handler) http.Handler {
-	allowed := map[domain.Role]struct{}{}
-	for _, r := range roles {
-		allowed[r] = struct{}{}
-	}
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			u, ok := UserFromContext(r.Context())
-			if !ok {
-				http.Error(w, "unauthenticated", http.StatusUnauthorized)
-				return
-			}
-			if _, exists := allowed[u.Role]; !exists {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
+// OAuthHandler implements the GitHub OAuth2 flow.
+type OAuthHandler struct {
+cfg    GitHubOAuthConfig
+sc     *securecookie.SecureCookie
 }
 
+// NewOAuthHandler creates an OAuthHandler.
+// hashKey must be at least 32 bytes; it is used to sign the session and state cookies.
+func NewOAuthHandler(cfg GitHubOAuthConfig, hashKey []byte) *OAuthHandler {
+return &OAuthHandler{cfg: cfg, sc: securecookie.New(hashKey, nil)}
+}
+
+// RedirectToGitHub handles GET /auth/login.
+// It generates a random state, stores it in a temporary cookie, and redirects
+// the user to GitHub's authorisation endpoint.
+func (h *OAuthHandler) RedirectToGitHub(w http.ResponseWriter, r *http.Request) {
+state, err := randomState()
+if err != nil {
+http.Error(w, "internal error", http.StatusInternalServerError)
+return
+}
+encoded, err := h.sc.Encode("oauth_state", state)
+if err != nil {
+http.Error(w, "internal error", http.StatusInternalServerError)
+return
+}
+http.SetCookie(w, &http.Cookie{
+Name:     "clph_oauth_state",
+Value:    encoded,
+HttpOnly: true,
+SameSite: http.SameSiteLaxMode,
+Path:     "/auth/callback",
+MaxAge:   300,
+})
+
+authURL := fmt.Sprintf(
+"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=user%%3Aemail&state=%s",
+url.QueryEscape(h.cfg.ClientID),
+url.QueryEscape(h.cfg.RedirectURL),
+url.QueryEscape(state),
+)
+http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+// HandleCallback handles GET /auth/callback.
+// It verifies the state, exchanges the code for a token, fetches the GitHub user,
+// sets a signed session cookie, and redirects to the wizard.
+func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
+// Verify state
+stateCookie, err := r.Cookie("clph_oauth_state")
+if err != nil {
+http.Error(w, "missing state cookie", http.StatusBadRequest)
+return
+}
+var expectedState string
+if err := h.sc.Decode("oauth_state", stateCookie.Value, &expectedState); err != nil {
+http.Error(w, "invalid state cookie", http.StatusBadRequest)
+return
+}
+if r.URL.Query().Get("state") != expectedState {
+http.Error(w, "state mismatch", http.StatusBadRequest)
+return
+}
+// Clear state cookie
+http.SetCookie(w, &http.Cookie{Name: "clph_oauth_state", MaxAge: -1, Path: "/auth/callback"})
+
+code := r.URL.Query().Get("code")
+if code == "" {
+http.Error(w, "missing code", http.StatusBadRequest)
+return
+}
+
+token, err := h.exchangeCode(r.Context(), code)
+if err != nil {
+http.Error(w, "token exchange failed", http.StatusInternalServerError)
+return
+}
+
+user, err := h.fetchUser(r.Context(), token)
+if err != nil {
+http.Error(w, "fetch user failed", http.StatusInternalServerError)
+return
+}
+
+encoded, err := h.sc.Encode("clph_session", user)
+if err != nil {
+http.Error(w, "session encode failed", http.StatusInternalServerError)
+return
+}
+http.SetCookie(w, &http.Cookie{
+Name:     "clph_session",
+Value:    encoded,
+HttpOnly: true,
+SameSite: http.SameSiteStrictMode,
+Path:     "/",
+MaxAge:   86400, // 24 hours
+})
+http.Redirect(w, r, "/wizard", http.StatusFound)
+}
+
+// exchangeCode exchanges an OAuth2 code for a GitHub access token.
+func (h *OAuthHandler) exchangeCode(ctx context.Context, code string) (string, error) {
+resp, err := http.PostForm("https://github.com/login/oauth/access_token", url.Values{
+"client_id":     {h.cfg.ClientID},
+"client_secret": {h.cfg.ClientSecret},
+"code":          {code},
+"redirect_uri":  {h.cfg.RedirectURL},
+})
+if err != nil {
+return "", fmt.Errorf("token request: %w", err)
+}
+defer resp.Body.Close()
+
+body, err := io.ReadAll(resp.Body)
+if err != nil {
+return "", fmt.Errorf("read token response: %w", err)
+}
+vals, err := url.ParseQuery(string(body))
+if err != nil {
+return "", fmt.Errorf("parse token response: %w", err)
+}
+token := vals.Get("access_token")
+if token == "" {
+return "", fmt.Errorf("no access_token in response: %s", string(body))
+}
+return token, nil
+}
+
+// githubUser is the GitHub user API response (subset).
+type githubUser struct {
+Login string `json:"login"`
+Name  string `json:"name"`
+Email string `json:"email"`
+ID    int64  `json:"id"`
+}
+
+// githubEmail is one entry from GET /user/emails.
+type githubEmail struct {
+Email    string `json:"email"`
+Primary  bool   `json:"primary"`
+Verified bool   `json:"verified"`
+}
+
+// fetchUser retrieves GitHub user identity using the provided access token.
+func (h *OAuthHandler) fetchUser(ctx context.Context, token string) (domain.User, error) {
+req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
+req.Header.Set("Authorization", "Bearer "+token)
+req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+resp, err := http.DefaultClient.Do(req)
+if err != nil {
+return domain.User{}, fmt.Errorf("github user api: %w", err)
+}
+defer resp.Body.Close()
+
+var gu githubUser
+if err := json.NewDecoder(resp.Body).Decode(&gu); err != nil {
+return domain.User{}, fmt.Errorf("decode user: %w", err)
+}
+
+email := gu.Email
+if email == "" {
+email = h.fetchPrimaryEmail(ctx, token)
+}
+
+displayName := gu.Name
+if displayName == "" {
+displayName = gu.Login
+}
+
+return domain.User{
+GitHubUsername: gu.Login,
+DisplayName:    displayName,
+Email:          email,
+OIDCSubject:    fmt.Sprintf("github:%s", gu.Login),
+}, nil
+}
+
+// fetchPrimaryEmail retrieves the user's primary verified email from GitHub.
+func (h *OAuthHandler) fetchPrimaryEmail(ctx context.Context, token string) string {
+req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
+req.Header.Set("Authorization", "Bearer "+token)
+req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+resp, err := http.DefaultClient.Do(req)
+if err != nil {
+return ""
+}
+defer resp.Body.Close()
+
+var emails []githubEmail
+if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
+return ""
+}
+for _, e := range emails {
+if e.Primary && e.Verified {
+return e.Email
+}
+}
+return ""
+}
+
+// AuthMiddleware reads the signed session cookie and populates the request context
+// with the authenticated user. Requests without a valid session continue without
+// a user; protected routes should use RequireAuth.
+func (h *OAuthHandler) AuthMiddleware(next http.Handler) http.Handler {
+return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+cookie, err := r.Cookie("clph_session")
+if err == nil && cookie.Value != "" {
+var user domain.User
+if err := h.sc.Decode("clph_session", cookie.Value, &user); err == nil {
+next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, user)))
+return
+}
+}
+next.ServeHTTP(w, r)
+})
+}
+
+// RequireAuth is middleware that rejects unauthenticated requests with a redirect
+// to the login page.
+func RequireAuth(next http.Handler) http.Handler {
+return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+_, ok := UserFromContext(r.Context())
+if !ok {
+http.Redirect(w, r, "/", http.StatusFound)
+return
+}
+next.ServeHTTP(w, r)
+})
+}
+
+// SecurityHeaders adds standard security response headers.
 func SecurityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://unpkg.com https://cdn.tailwindcss.com; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
-		next.ServeHTTP(w, r)
-	})
+return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+w.Header().Set("Content-Security-Policy",
+"default-src 'self'; script-src 'self' https://unpkg.com https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'")
+w.Header().Set("X-Content-Type-Options", "nosniff")
+w.Header().Set("X-Frame-Options", "DENY")
+next.ServeHTTP(w, r)
+})
+}
+
+// randomState generates a cryptographically random OAuth2 state value.
+func randomState() (string, error) {
+b := make([]byte, 16)
+if _, err := rand.Read(b); err != nil {
+return "", err
+}
+return hex.EncodeToString(b), nil
 }

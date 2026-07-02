@@ -1,0 +1,36 @@
+{{define "wizard_publish.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Attach to OCI Artefact – CLPH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <span class="font-semibold">CLPH Suitability Assessment</span>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-2xl mx-auto p-8 space-y-6">
+    <h1 class="text-2xl font-semibold">Attach Attestation to OCI Artefact</h1>
+
+    <div class="bg-green-50 border border-green-200 rounded p-4 text-sm text-green-900">
+      <p>✓ Attestation signed. Ready to attach to the OCI artefact.</p>
+      {{if .state.Attestation}}<p class="mt-1 font-mono text-xs text-green-700">Signed by: {{.state.Attestation.SignedBy}} at {{.state.Attestation.SigningTime.Format "2006-01-02T15:04:05Z"}}</p>{{end}}
+    </div>
+
+    <form method="post" action="/wizard/{{.state.ID}}/publish" class="space-y-4 bg-white border rounded p-6">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+      <div>
+        <label class="block text-sm font-medium mb-1">Registry Host <span class="text-red-500">*</span></label>
+        <input name="registry" required value="{{.state.Artefact.Registry}}" placeholder="registry.local:5000" class="border rounded p-2 w-full font-mono text-sm" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Artefact Reference <span class="text-red-500">*</span></label>
+        <input name="artifact_ref" required value="{{.state.Artefact.Reference}}" placeholder="repo@sha256:..." class="border rounded p-2 w-full font-mono text-sm" />
+        <p class="text-xs text-slate-500 mt-1">Prefer a digest reference to pin the exact artefact version.</p>
+      </div>
+      <button class="w-full bg-slate-900 text-white px-6 py-3 rounded-lg font-semibold">Attach Attestation to OCI Artefact</button>
+    </form>
+  </main>
+</body>
+</html>{{end}}

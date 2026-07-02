@@ -8,7 +8,5 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/clph-web ./cmd/clph-w
 FROM gcr.io/distroless/base-debian12
 WORKDIR /app
 COPY --from=build /out/clph-web /usr/local/bin/clph-web
-COPY db/migrations /app/db/migrations
-COPY internal/web/templates /app/internal/web/templates
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/clph-web"]

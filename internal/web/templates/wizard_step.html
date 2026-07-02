@@ -1,0 +1,63 @@
+{{define "wizard_step.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Step {{.step}}: {{stepLabel .step}} – CLPH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <span class="font-semibold">CLPH Suitability Assessment</span>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-2xl mx-auto p-8 space-y-6">
+    <div class="flex items-center gap-2 text-sm text-slate-500">
+      <span class="bg-blue-600 text-white px-2 py-0.5 rounded">Step {{.step}} of 10</span>
+      {{stepLabel .step}}
+    </div>
+
+    {{if .state.Artefact.Name}}
+    <div class="bg-slate-100 rounded px-4 py-2 text-sm">
+      Assessing: <strong>{{.state.Artefact.Name}}</strong>
+      {{if .state.Artefact.Digest}}<code class="text-xs text-slate-500 ml-2">{{.state.Artefact.Digest}}</code>{{end}}
+    </div>
+    {{end}}
+
+    {{$section := stepSection .step}}
+    {{$meta := sectionMeta $section}}
+    {{$resp := sectionResp .state $section}}
+
+    <h1 class="text-2xl font-semibold">{{$meta.Label}}</h1>
+    <div class="bg-blue-50 border border-blue-200 rounded p-4 text-sm text-blue-900">
+      <strong>Guidance:</strong> {{$meta.Guidance}}
+    </div>
+
+    <form method="post" action="/wizard/{{.state.ID}}/step/{{.step}}" class="space-y-4 bg-white border rounded p-6">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Assessment Notes</label>
+        <textarea name="notes" rows="5" placeholder="Record workshop discussion, observations, and findings for this section..." class="border rounded p-2 w-full text-sm">{{$resp.Notes}}</textarea>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Evidence References</label>
+        <textarea name="evidence" rows="3" placeholder="One reference per line, e.g.:&#10;https://jira.example.com/SEC-001&#10;https://wiki.example.com/security-review" class="border rounded p-2 w-full text-sm font-mono">{{range $resp.Evidence}}{{.Reference}}
+{{end}}</textarea>
+        <p class="text-xs text-slate-500 mt-1">Enter one evidence reference per line (URLs, ticket numbers, document references).</p>
+      </div>
+
+      <div class="flex justify-between items-center pt-2">
+        {{if gt .step 2}}
+        <a href="/wizard/{{.state.ID}}/step/{{sub .step 1}}" class="text-blue-600 underline text-sm">← Back</a>
+        {{else}}
+        <a href="/wizard/new" class="text-blue-600 underline text-sm">← Back to Artefact</a>
+        {{end}}
+        <button class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium">
+          {{if lt .step 9}}Continue to {{stepLabel (add .step 1)}} →{{else if eq .step 9}}Continue to Outcome →{{else}}Save and Continue →{{end}}
+        </button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>{{end}}

@@ -1,0 +1,90 @@
+{{define "wizard_outcome.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Step 10: Outcome and Rationale – CLPH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <span class="font-semibold">CLPH Suitability Assessment</span>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-2xl mx-auto p-8 space-y-6">
+    <div class="flex items-center gap-2 text-sm text-slate-500">
+      <span class="bg-blue-600 text-white px-2 py-0.5 rounded">Step 10 of 10</span>
+      Outcome and Rationale
+    </div>
+
+    <h1 class="text-2xl font-semibold">Select the Suitability Outcome</h1>
+
+    <div class="bg-amber-50 border border-amber-200 rounded p-4 text-sm text-amber-900">
+      <strong>Important:</strong> The outcome is a human decision. This application records the decision made by the workshop. It does not calculate or recommend an outcome.
+    </div>
+
+    <form method="post" action="/wizard/{{.state.ID}}/step/10" class="space-y-5 bg-white border rounded p-6">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+
+      <fieldset class="space-y-3">
+        <legend class="text-sm font-medium">Suitability Outcome <span class="text-red-500">*</span></legend>
+        <label class="flex items-start gap-3 p-3 border rounded cursor-pointer hover:bg-slate-50">
+          <input type="radio" name="outcome" value="OutcomeA" class="mt-0.5" {{if .state.Outcome}}{{if eq (print .state.Outcome) "OutcomeA"}}checked{{end}}{{end}} required />
+          <div><strong>Outcome A</strong><br/><span class="text-sm text-slate-600">Suitable for Promotion — no additional controls required.</span></div>
+        </label>
+        <label class="flex items-start gap-3 p-3 border rounded cursor-pointer hover:bg-slate-50">
+          <input type="radio" name="outcome" value="OutcomeB" {{if .state.Outcome}}{{if eq (print .state.Outcome) "OutcomeB"}}checked{{end}}{{end}} />
+          <div><strong>Outcome B</strong><br/><span class="text-sm text-slate-600">Suitable with Additional Controls — specific mitigations must be applied.</span></div>
+        </label>
+        <label class="flex items-start gap-3 p-3 border rounded cursor-pointer hover:bg-slate-50">
+          <input type="radio" name="outcome" value="OutcomeC" {{if .state.Outcome}}{{if eq (print .state.Outcome) "OutcomeC"}}checked{{end}}{{end}} />
+          <div><strong>Outcome C</strong><br/><span class="text-sm text-slate-600">Hybrid Treatment Required — partial promotion with compensating controls.</span></div>
+        </label>
+        <label class="flex items-start gap-3 p-3 border rounded cursor-pointer hover:bg-slate-50">
+          <input type="radio" name="outcome" value="OutcomeD" {{if .state.Outcome}}{{if eq (print .state.Outcome) "OutcomeD"}}checked{{end}}{{end}} />
+          <div><strong>Outcome D</strong><br/><span class="text-sm text-slate-600">Higher Assurance Treatment Required — artefact requires further assurance activities.</span></div>
+        </label>
+      </fieldset>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Outcome Rationale <span class="text-red-500">*</span></label>
+        <textarea name="rationale" rows="4" required placeholder="Explain the reasoning behind the selected outcome..." class="border rounded p-2 w-full text-sm">{{.state.OutcomeRationale}}</textarea>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Required Controls (if applicable)</label>
+        <textarea name="controls" rows="3" placeholder="List any controls required for this outcome..." class="border rounded p-2 w-full text-sm">{{.state.RequiredControls}}</textarea>
+      </div>
+
+      <fieldset class="space-y-3">
+        <legend class="text-sm font-medium">Promotion Pattern <span class="text-red-500">*</span></legend>
+        <label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-slate-50">
+          <input type="radio" name="pattern" value="PatternA" class="mt-0.5" {{if .state.Pattern}}{{if eq (print .state.Pattern) "PatternA"}}checked{{end}}{{end}} required />
+          <strong>Pattern A</strong>
+        </label>
+        <label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-slate-50">
+          <input type="radio" name="pattern" value="PatternB" {{if .state.Pattern}}{{if eq (print .state.Pattern) "PatternB"}}checked{{end}}{{end}} />
+          <strong>Pattern B</strong>
+        </label>
+        <label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-slate-50">
+          <input type="radio" name="pattern" value="PatternC" {{if .state.Pattern}}{{if eq (print .state.Pattern) "PatternC"}}checked{{end}}{{end}} />
+          <strong>Pattern C</strong>
+        </label>
+        <label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-slate-50">
+          <input type="radio" name="pattern" value="PatternD" {{if .state.Pattern}}{{if eq (print .state.Pattern) "PatternD"}}checked{{end}}{{end}} />
+          <strong>Pattern D</strong>
+        </label>
+      </fieldset>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Pattern Justification <span class="text-red-500">*</span></label>
+        <textarea name="pattern_rationale" rows="3" required placeholder="Justify the selected promotion pattern..." class="border rounded p-2 w-full text-sm">{{.state.PatternRationale}}</textarea>
+      </div>
+
+      <div class="flex justify-between items-center pt-2">
+        <a href="/wizard/{{.state.ID}}/step/9" class="text-blue-600 underline text-sm">← Back</a>
+        <button class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium">Continue to Participants →</button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>{{end}}

@@ -1,0 +1,61 @@
+{{define "wizard_artefact.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Step 1: Artefact Information – CLPH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <span class="font-semibold">CLPH Suitability Assessment</span>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-2xl mx-auto p-8 space-y-6">
+    <div class="flex items-center gap-2 text-sm text-slate-500">
+      <span class="bg-blue-600 text-white px-2 py-0.5 rounded">Step 1 of 10</span>
+      <span>Artefact Information</span>
+    </div>
+    <h1 class="text-2xl font-semibold">Select the OCI Artefact</h1>
+    <p class="text-slate-600 text-sm">Identify the exact OCI artefact to be assessed. The artefact digest becomes the subject of the signed attestation.</p>
+    <form method="post" action="/wizard/new" class="space-y-4 bg-white border rounded p-6">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <label class="block text-sm font-medium mb-1">Artefact Name <span class="text-red-500">*</span></label>
+          <input name="artefact_name" required placeholder="e.g. orders-api" class="border rounded p-2 w-full" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Artefact Type <span class="text-red-500">*</span></label>
+          <select name="artefact_type" class="border rounded p-2 w-full">
+            <option value="application-container">Application Container</option>
+            <option value="base-image">Base Image</option>
+            <option value="helm-chart">Helm Chart</option>
+            <option value="oci-artifact">OCI Artifact</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Registry <span class="text-red-500">*</span></label>
+          <input name="artefact_registry" required placeholder="registry.local:5000" class="border rounded p-2 w-full" />
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium mb-1">Full Reference</label>
+          <input name="artefact_reference" placeholder="registry.local/repo:tag or repo@sha256:..." class="border rounded p-2 w-full" />
+          <p class="text-xs text-slate-500 mt-1">Use <a href="/oci/discover" target="_blank" class="underline">OCI Discovery</a> to browse and resolve the digest.</p>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium mb-1">Artefact Digest <span class="text-red-500">*</span></label>
+          <input name="artefact_digest" required placeholder="sha256:..." class="border rounded p-2 w-full font-mono text-sm" />
+          <p class="text-xs text-slate-500 mt-1">The digest pins the exact artefact. Run <code>crane digest &lt;ref&gt;</code> or use the OCI Discovery page.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Review Date</label>
+          <input name="review_date" type="date" class="border rounded p-2 w-full" />
+          <p class="text-xs text-slate-500 mt-1">Defaults to one year from today.</p>
+        </div>
+      </div>
+      <button class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium">Continue to Sensitivity →</button>
+    </form>
+  </main>
+</body>
+</html>{{end}}

@@ -1,76 +1,126 @@
 package app
 
 import (
-	"context"
-	"errors"
-	"testing"
-	"time"
+"context"
+"testing"
+"time"
 
-	"github.com/h3ow3d/special-dollop/internal/domain"
+"github.com/h3ow3d/special-dollop/internal/domain"
+"github.com/h3ow3d/special-dollop/internal/infra/session"
 )
-
-type fakeRepo struct {
-	assessment domain.Assessment
-	approved   bool
-}
-
-func (f *fakeRepo) CreateAssessment(_ context.Context, in domain.Assessment) (domain.Assessment, error) {
-	return in, nil
-}
-func (f *fakeRepo) ListAssessments(_ context.Context) ([]domain.Assessment, error) { return nil, nil }
-func (f *fakeRepo) GetAssessmentByID(_ context.Context, _ int64) (domain.Assessment, error) {
-	return f.assessment, nil
-}
-func (f *fakeRepo) UpdateOutcome(_ context.Context, _ int64, _ domain.Outcome, _, _ string, _ domain.Pattern, _ string, _ domain.AssessmentStatus) error {
-	return nil
-}
-func (f *fakeRepo) AddApproval(_ context.Context, _ domain.Approval) error { return nil }
-func (f *fakeRepo) SetAssessmentStatus(_ context.Context, _ int64, status domain.AssessmentStatus) error {
-	f.assessment.Status = status
-	return nil
-}
-func (f *fakeRepo) SaveAttestation(_ context.Context, att domain.Attestation) (domain.Attestation, error) {
-	att.ID = 1
-	return att, nil
-}
-func (f *fakeRepo) GetAttestationByID(_ context.Context, _ int64) (domain.Attestation, error) {
-	return domain.Attestation{ID: 1, AssessmentID: 42, StatementJSON: []byte(`{"x":1}`)}, nil
-}
-func (f *fakeRepo) UpdateAttestationPublication(_ context.Context, _ int64, _, _ string, _ time.Time) error {
-	return nil
-}
-func (f *fakeRepo) CreateOrUpdateUser(_ context.Context, user domain.User) (domain.User, error) {
-	user.ID = 1
-	return user, nil
-}
-func (f *fakeRepo) AppendAuditLog(_ context.Context, _ domain.AuditLog) error { return nil }
 
 type fakeBuilder struct{}
 
-func (f *fakeBuilder) Build(_ domain.Assessment, _ string) ([]byte, error) {
-	return []byte(`{"x":1}`), nil
+func (f *fakeBuilder) Build(_ *domain.AssessmentState) ([]byte, error) {
+return []byte(`{"_type":"https://in-toto.io/Statement/v1","predicateType":"https://clph.internal/suitability/v1"}`), nil
 }
 
 type fakeSigner struct{}
 
 func (f *fakeSigner) Sign(_ context.Context, _ []byte, _ domain.User) (string, error) {
-	return "sig", nil
+return "dGVzdHNpZw==", nil // base64 "testsig"
 }
 
 type fakePublisher struct{}
 
 func (f *fakePublisher) Publish(_ context.Context, _, _ string, _ []byte) (string, error) {
-	return "registry/repo@sha256:1", nil
+return "registry.local/repo@sha256:abc123", nil
 }
 
-func TestGenerateAndSignAttestationRequiresApproved(t *testing.T) {
-	o := domain.OutcomeA
-	p := domain.PatternA
-	repo := &fakeRepo{assessment: domain.Assessment{ID: 42, Status: domain.StatusDraft, Outcome: &o, Pattern: &p}}
-	svc := NewService(repo, &fakeBuilder{}, &fakeSigner{}, &fakePublisher{})
+func newTestService() *Service {
+return NewService(session.NewStore(), &fakeBuilder{}, &fakeSigner{}, &fakePublisher{})
+}
 
-	_, err := svc.GenerateAndSignAttestation(context.Background(), domain.User{GitHubUser: "sam"}, 42)
-	if !errors.Is(err, ErrNotApproved) {
-		t.Fatalf("expected ErrNotApproved got %v", err)
-	}
+func TestStartAssessment(t *testing.T) {
+svc := newTestService()
+user := domain.User{GitHubUsername: "sam", Email: "sam@example.com", OIDCSubject: "github:sam"}
+artefact := domain.ArtefactInfo{Name: "orders-api", Type: "application-container", Digest: "sha256:abc"}
+state, err := svc.StartAssessment(user, artefact, time.Time{})
+if err != nil {
+t.Fatalf("StartAssessment: %v", err)
+}
+if state.ID == "" {
+t.Fatal("expected non-empty assessment ID")
+}
+if state.User.GitHubUsername != "sam" {
+t.Fatalf("expected user sam got %s", state.User.GitHubUsername)
+}
+}
+
+func TestUpdateSection(t *testing.T) {
+svc := newTestService()
+user := domain.User{GitHubUsername: "sam"}
+state, _ := svc.StartAssessment(user, domain.ArtefactInfo{Name: "x"}, time.Time{})
+
+err := svc.UpdateSection(state.ID, domain.SectionSensitivity, domain.SectionResponse{
+Notes: "sensitive data processed",
+})
+if err != nil {
+t.Fatalf("UpdateSection: %v", err)
+}
+
+got, _ := svc.GetAssessment(state.ID)
+if got.Sections[domain.SectionSensitivity].Notes != "sensitive data processed" {
+t.Fatalf("unexpected notes: %s", got.Sections[domain.SectionSensitivity].Notes)
+}
+}
+
+func TestSetOutcomeAndGenerateAndSign(t *testing.T) {
+svc := newTestService()
+user := domain.User{GitHubUsername: "sam", Email: "sam@example.com"}
+state, _ := svc.StartAssessment(user, domain.ArtefactInfo{Name: "x"}, time.Time{})
+
+// GenerateAndSign should fail without an outcome
+if _, err := svc.GenerateAndSign(context.Background(), state.ID); err == nil {
+t.Fatal("expected error when outcome not set")
+}
+
+if err := svc.SetOutcome(state.ID, domain.OutcomeA, "rationale", "", domain.PatternA, "justification"); err != nil {
+t.Fatalf("SetOutcome: %v", err)
+}
+
+att, err := svc.GenerateAndSign(context.Background(), state.ID)
+if err != nil {
+t.Fatalf("GenerateAndSign: %v", err)
+}
+if att.SignedBy != "sam" {
+t.Fatalf("expected SignedBy=sam got %s", att.SignedBy)
+}
+if len(att.EnvelopeJSON) == 0 {
+t.Fatal("expected non-empty DSSE envelope")
+}
+}
+
+func TestPublishRequiresAttestation(t *testing.T) {
+svc := newTestService()
+state, _ := svc.StartAssessment(domain.User{}, domain.ArtefactInfo{Name: "x"}, time.Time{})
+if _, err := svc.PublishAttestation(context.Background(), state.ID, "registry.local", "repo:tag"); err == nil {
+t.Fatal("expected error when attestation not yet generated")
+}
+}
+
+func TestAddRemoveParticipant(t *testing.T) {
+svc := newTestService()
+state, _ := svc.StartAssessment(domain.User{}, domain.ArtefactInfo{Name: "x"}, time.Time{})
+
+_ = svc.AddParticipant(state.ID, domain.Participant{Name: "Alice", Role: "Assessor", Organisation: "Acme"})
+_ = svc.AddParticipant(state.ID, domain.Participant{Name: "Bob", Role: "Observer", Organisation: "Corp"})
+
+got, _ := svc.GetAssessment(state.ID)
+if len(got.Participants) != 2 {
+t.Fatalf("expected 2 participants, got %d", len(got.Participants))
+}
+
+_ = svc.RemoveParticipant(state.ID, 0)
+got, _ = svc.GetAssessment(state.ID)
+if len(got.Participants) != 1 || got.Participants[0].Name != "Bob" {
+t.Fatalf("expected only Bob remaining, got %+v", got.Participants)
+}
+}
+
+func TestGetAssessmentNotFound(t *testing.T) {
+svc := newTestService()
+if _, err := svc.GetAssessment("nonexistent"); err == nil {
+t.Fatal("expected ErrNotFound")
+}
 }

@@ -1,81 +1,88 @@
 package web
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
+"context"
+"net/http"
+"net/http/httptest"
+"testing"
 
-	"github.com/h3ow3d/special-dollop/internal/app"
-	"github.com/h3ow3d/special-dollop/internal/domain"
+"github.com/h3ow3d/special-dollop/internal/app"
+"github.com/h3ow3d/special-dollop/internal/domain"
+"github.com/h3ow3d/special-dollop/internal/infra/security"
+"github.com/h3ow3d/special-dollop/internal/infra/session"
 )
-
-type fakeRepo struct{}
-
-func (f *fakeRepo) CreateAssessment(_ context.Context, in domain.Assessment) (domain.Assessment, error) {
-	in.ID = 1
-	return in, nil
-}
-func (f *fakeRepo) ListAssessments(_ context.Context) ([]domain.Assessment, error) {
-	return []domain.Assessment{{ID: 1, AssessmentID: "SA-001", Status: domain.StatusDraft, ArtefactName: "orders-api"}}, nil
-}
-func (f *fakeRepo) GetAssessmentByID(_ context.Context, _ int64) (domain.Assessment, error) {
-	o := domain.OutcomeA
-	p := domain.PatternA
-	return domain.Assessment{ID: 1, AssessmentID: "SA-001", Status: domain.StatusApproved, Outcome: &o, Pattern: &p, CreatedAt: time.Now().UTC(), ReviewDate: time.Now().UTC()}, nil
-}
-func (f *fakeRepo) UpdateOutcome(_ context.Context, _ int64, _ domain.Outcome, _, _ string, _ domain.Pattern, _ string, _ domain.AssessmentStatus) error {
-	return nil
-}
-func (f *fakeRepo) AddApproval(_ context.Context, _ domain.Approval) error { return nil }
-func (f *fakeRepo) SetAssessmentStatus(_ context.Context, _ int64, _ domain.AssessmentStatus) error {
-	return nil
-}
-func (f *fakeRepo) SaveAttestation(_ context.Context, att domain.Attestation) (domain.Attestation, error) {
-	return att, nil
-}
-func (f *fakeRepo) GetAttestationByID(_ context.Context, _ int64) (domain.Attestation, error) {
-	return domain.Attestation{ID: 1, StatementJSON: []byte(`{"ok":true}`)}, nil
-}
-func (f *fakeRepo) UpdateAttestationPublication(_ context.Context, _ int64, _, _ string, _ time.Time) error {
-	return nil
-}
-func (f *fakeRepo) CreateOrUpdateUser(_ context.Context, user domain.User) (domain.User, error) {
-	user.ID = 1
-	return user, nil
-}
-func (f *fakeRepo) AppendAuditLog(_ context.Context, _ domain.AuditLog) error { return nil }
 
 type fakeBuilder struct{}
 
-func (f *fakeBuilder) Build(_ domain.Assessment, _ string) ([]byte, error) {
-	return []byte(`{"ok":true}`), nil
+func (f *fakeBuilder) Build(_ *domain.AssessmentState) ([]byte, error) {
+return []byte(`{"ok":true}`), nil
 }
 
 type fakeSigner struct{}
 
 func (f *fakeSigner) Sign(_ context.Context, _ []byte, _ domain.User) (string, error) {
-	return "sig", nil
+return "dGVzdHNpZw==", nil
 }
 
 type fakePublisher struct{}
 
 func (f *fakePublisher) Publish(_ context.Context, _, _ string, _ []byte) (string, error) {
-	return "registry/ref", nil
+return "registry/ref@sha256:abc", nil
+}
+
+const testHashKey = "test-hash-key-32-bytes-long-fill"
+
+func newTestHandler(t *testing.T) (*Handler, *security.OAuthHandler) {
+t.Helper()
+svc := app.NewService(session.NewStore(), &fakeBuilder{}, &fakeSigner{}, &fakePublisher{})
+oauth := security.NewOAuthHandler(security.GitHubOAuthConfig{}, []byte(testHashKey))
+h, err := NewHandler(svc, oauth)
+if err != nil {
+t.Fatalf("NewHandler: %v", err)
+}
+return h, oauth
 }
 
 func TestHealthLive(t *testing.T) {
-	h, err := NewHandler(app.NewService(&fakeRepo{}, &fakeBuilder{}, &fakeSigner{}, &fakePublisher{}))
-	if err != nil {
-		t.Fatalf("handler: %v", err)
-	}
+h, _ := newTestHandler(t)
+r := httptest.NewRequest(http.MethodGet, "/health/live", nil)
+w := httptest.NewRecorder()
+h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(w, r)
+if w.Code != http.StatusOK {
+t.Fatalf("expected 200 got %d", w.Code)
+}
+}
 
-	r := httptest.NewRequest(http.MethodGet, "/health/live", nil)
-	w := httptest.NewRecorder()
-	h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(w, r)
+func TestHealthReady(t *testing.T) {
+h, _ := newTestHandler(t)
+r := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+w := httptest.NewRecorder()
+h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(w, r)
+if w.Code != http.StatusOK {
+t.Fatalf("expected 200 got %d", w.Code)
+}
+}
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 got %d", w.Code)
-	}
+func TestHomeRendersForUnauthenticated(t *testing.T) {
+h, _ := newTestHandler(t)
+r := httptest.NewRequest(http.MethodGet, "/", nil)
+w := httptest.NewRecorder()
+h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(w, r)
+if w.Code != http.StatusOK {
+t.Fatalf("expected 200 for unauthenticated home, got %d", w.Code)
+}
+}
+
+func TestWizardProtectedWithoutAuth(t *testing.T) {
+h, _ := newTestHandler(t)
+r := httptest.NewRequest(http.MethodGet, "/wizard/new", nil)
+w := httptest.NewRecorder()
+h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(w, r)
+// Should redirect to / because RequireAuth is applied
+if w.Code != http.StatusFound {
+t.Fatalf("expected redirect for unauthenticated wizard, got %d", w.Code)
+}
+if loc := w.Header().Get("Location"); loc != "/" {
+t.Fatalf("expected redirect to / got %s", loc)
+}
 }

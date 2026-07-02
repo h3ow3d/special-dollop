@@ -1,0 +1,44 @@
+{{define "oci_discover.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OCI Discovery – CLPH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <span class="font-semibold">CLPH – OCI Discovery</span>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-2xl mx-auto p-8 space-y-6">
+    <h1 class="text-2xl font-semibold">OCI Artefact Discovery</h1>
+    <p class="text-slate-600 text-sm">Enter a registry, repository, and tag to resolve the artefact digest. Copy the digest into the assessment wizard.</p>
+
+    <div class="bg-blue-50 border border-blue-200 rounded p-4 text-sm text-blue-900 space-y-1">
+      <p><strong>Tip:</strong> You can also resolve a digest locally:</p>
+      <code class="block bg-white p-2 rounded text-xs mt-1">crane digest registry.local/repo:tag</code>
+      <code class="block bg-white p-2 rounded text-xs mt-1">cosign triangulate registry.local/repo:tag</code>
+    </div>
+
+    <form hx-post="/oci/resolve" hx-target="#result" hx-swap="innerHTML" class="space-y-4 bg-white border rounded p-6">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+      <div>
+        <label class="block text-sm font-medium mb-1">Registry Host</label>
+        <input name="registry" required placeholder="registry.local:5000" class="border rounded p-2 w-full font-mono text-sm" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Repository</label>
+        <input name="repository" required placeholder="myorg/orders-api" class="border rounded p-2 w-full font-mono text-sm" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Tag (optional)</label>
+        <input name="tag" placeholder="v1.2.3 or latest" class="border rounded p-2 w-full font-mono text-sm" />
+      </div>
+      <button class="bg-blue-600 text-white px-4 py-2 rounded">Resolve Reference</button>
+    </form>
+
+    <div id="result" class="text-sm font-mono text-slate-600"></div>
+  </main>
+</body>
+</html>{{end}}
