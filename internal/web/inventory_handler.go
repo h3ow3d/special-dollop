@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/h3ow3d/special-dollop/internal/audit"
 	"github.com/h3ow3d/special-dollop/internal/domain"
+	"github.com/h3ow3d/special-dollop/internal/evidence"
 	"github.com/h3ow3d/special-dollop/internal/infra/security"
 	"github.com/h3ow3d/special-dollop/internal/inventory"
 	"github.com/h3ow3d/special-dollop/internal/rbac"
@@ -48,6 +49,7 @@ func (ih *InventoryHandler) RegisterRoutes(r chi.Router) {
 		wr.Post("/inventory", ih.create)
 		wr.Get("/inventory/{id}/edit", ih.editForm)
 		wr.Post("/inventory/{id}", ih.update)
+		wr.Post("/inventory/{id}/discovery/refresh", ih.refreshDiscovery)
 		wr.Post("/inventory/{id}/deactivate", ih.deactivate)
 		wr.Post("/inventory/{id}/activate", ih.activate)
 	})
@@ -153,13 +155,33 @@ func (ih *InventoryHandler) detail(w http.ResponseWriter, r *http.Request) {
 		session.TeamID != nil && *session.TeamID == item.TeamID {
 		canEdit = true
 	}
+	artifactMetadata, err := ih.inventorySvc.GetArtifactMetadata(r.Context(), item.ID)
+	if err != nil {
+		http.Error(w, "failed to load artifact metadata: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	evidenceGroups := map[string]any{
+		"signatures":   []*inventoryItemEvidenceView{},
+		"sboms":        []*inventoryItemEvidenceView{},
+		"provenance":   []*inventoryItemEvidenceView{},
+		"attestations": []*inventoryItemEvidenceView{},
+	}
+	if artifactMetadata != nil {
+		evidenceGroups = groupEvidence(artifactMetadata)
+	}
 
 	ih.tmpl.render(w, r, "inventory_detail.html", map[string]any{
-		"item":    item,
-		"team":    owningTeam,
-		"canEdit": canEdit,
-		"session": session,
-		"csrf":    csrf.Token(r),
+		"item":             item,
+		"team":             owningTeam,
+		"canEdit":          canEdit,
+		"session":          session,
+		"csrf":             csrf.Token(r),
+		"artifactMetadata": artifactMetadata,
+		"signatures":       evidenceGroups["signatures"],
+		"sboms":            evidenceGroups["sboms"],
+		"provenance":       evidenceGroups["provenance"],
+		"attestations":     evidenceGroups["attestations"],
 	})
 }
 
@@ -197,12 +219,13 @@ func (ih *InventoryHandler) create(w http.ResponseWriter, r *http.Request) {
 		Description:   r.FormValue("description"),
 		TeamID:        teamID,
 		Registry:      r.FormValue("registry"),
+		Reference:     r.FormValue("reference"),
 		PackageURL:    r.FormValue("package_url"),
 		PackageName:   r.FormValue("package_name"),
 		RepositoryURL: r.FormValue("repository_url"),
 	}
-	if item.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+	if err := validateInventoryItem(item); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -251,12 +274,13 @@ func (ih *InventoryHandler) update(w http.ResponseWriter, r *http.Request) {
 	item.Name = r.FormValue("name")
 	item.Description = r.FormValue("description")
 	item.Registry = r.FormValue("registry")
+	item.Reference = r.FormValue("reference")
 	item.PackageURL = r.FormValue("package_url")
 	item.PackageName = r.FormValue("package_name")
 	item.RepositoryURL = r.FormValue("repository_url")
 
-	if item.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+	if err := validateInventoryItem(&item.InventoryItem); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -269,6 +293,26 @@ func (ih *InventoryHandler) update(w http.ResponseWriter, r *http.Request) {
 	ih.auditSvc.Record(r.Context(), &actorID, audit.ActionInventoryUpdated,
 		map[string]any{"inventory_item_id": item.ID, "name": item.Name}, r.RemoteAddr)
 
+	http.Redirect(w, r, fmt.Sprintf("/inventory/%d", item.ID), http.StatusFound)
+}
+
+func (ih *InventoryHandler) refreshDiscovery(w http.ResponseWriter, r *http.Request) {
+	item, ok := ih.loadItem(w, r)
+	if !ok {
+		return
+	}
+	session, _ := security.SessionFromContext(r.Context())
+	if !ih.canModify(session, item.TeamID) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	if err := ih.inventorySvc.RefreshEvidence(r.Context(), item.ID); err != nil {
+		http.Error(w, fmt.Sprintf("refresh discovery: %v", err), http.StatusInternalServerError)
+		return
+	}
+	actorID := session.UserID
+	ih.auditSvc.Record(r.Context(), &actorID, audit.ActionInventoryDiscoveryRefresh,
+		map[string]any{"inventory_item_id": item.ID, "name": item.Name}, r.RemoteAddr)
 	http.Redirect(w, r, fmt.Sprintf("/inventory/%d", item.ID), http.StatusFound)
 }
 
@@ -363,4 +407,54 @@ func resolveTeamID(r *http.Request, session domain.UserSession) (int64, error) {
 		return 0, fmt.Errorf("you must be assigned to a team to create inventory items")
 	}
 	return *session.TeamID, nil
+}
+
+func validateInventoryItem(item *inventory.InventoryItem) error {
+	switch {
+	case strings.TrimSpace(item.Name) == "":
+		return fmt.Errorf("name is required")
+	case strings.TrimSpace(item.Registry) == "":
+		return fmt.Errorf("registry is required")
+	case strings.TrimSpace(item.PackageName) == "":
+		return fmt.Errorf("repository is required")
+	case strings.TrimSpace(item.Reference) == "":
+		return fmt.Errorf("reference is required")
+	default:
+		return nil
+	}
+}
+
+type inventoryItemEvidenceView struct {
+	Name         string
+	Digest       string
+	MediaType    string
+	ArtifactType string
+}
+
+func groupEvidence(metadata *evidence.ArtifactMetadata) map[string]any {
+	groups := map[string]any{
+		"signatures":   []*inventoryItemEvidenceView{},
+		"sboms":        []*inventoryItemEvidenceView{},
+		"provenance":   []*inventoryItemEvidenceView{},
+		"attestations": []*inventoryItemEvidenceView{},
+	}
+	for _, item := range metadata.Evidence {
+		view := &inventoryItemEvidenceView{
+			Name:         item.Name,
+			Digest:       item.Digest,
+			MediaType:    item.MediaType,
+			ArtifactType: item.ArtifactType,
+		}
+		switch item.Type {
+		case evidence.EvidenceTypeSignature:
+			groups["signatures"] = append(groups["signatures"].([]*inventoryItemEvidenceView), view)
+		case evidence.EvidenceTypeSBOM:
+			groups["sboms"] = append(groups["sboms"].([]*inventoryItemEvidenceView), view)
+		case evidence.EvidenceTypeProvenance:
+			groups["provenance"] = append(groups["provenance"].([]*inventoryItemEvidenceView), view)
+		default:
+			groups["attestations"] = append(groups["attestations"].([]*inventoryItemEvidenceView), view)
+		}
+	}
+	return groups
 }

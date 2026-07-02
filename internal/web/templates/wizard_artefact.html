@@ -17,23 +17,30 @@
     {{if .inventoryItemID}}
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-1">
       <p class="text-sm font-semibold text-blue-800">Assessing inventory item: {{.inventoryItemName}}</p>
-      <p class="text-xs text-blue-700">This assessment is linked to a registered inventory package for traceability.</p>
+      <p class="text-xs text-blue-700">This assessment is linked to a registered inventory package and uses its discovered artifact metadata for traceability.</p>
     </div>
     {{end}}
 
     <h1 class="text-2xl font-semibold">Select the OCI Artefact</h1>
-    <p class="text-slate-600 text-sm">Identify the exact OCI artefact to be assessed. The artefact digest becomes the subject of the signed attestation.</p>
+    <p class="text-slate-600 text-sm">Review the inventory-backed artifact metadata that will be assessed. The discovered digest becomes the subject of the signed attestation.</p>
     <form method="post" action="/wizard/new" class="space-y-4 bg-white border rounded p-6">
       <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
       {{if .inventoryItemID}}
       <input type="hidden" name="inventory_item_id" value="{{.inventoryItemID}}" />
+      {{end}}
+      {{if and .inventoryItemID (not .discoveryReady)}}
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+        <p class="font-medium">Artifact discovery is not ready.</p>
+        <p class="mt-1">Refresh metadata from the inventory item before starting an assessment so the workflow can use a resolved digest and discovered evidence.</p>
+      </div>
       {{end}}
       <div class="grid grid-cols-2 gap-4">
         <div class="col-span-2">
           <label class="block text-sm font-medium mb-1">Artefact Name <span class="text-red-500">*</span></label>
           <input name="artefact_name" required placeholder="e.g. orders-api"
                  value="{{.inventoryItemName}}"
-                 class="border rounded p-2 w-full" />
+                 {{if .inventoryItemID}}readonly{{end}}
+                 class="border rounded p-2 w-full {{if .inventoryItemID}}bg-slate-50 text-slate-600{{end}}" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Artefact Type <span class="text-red-500">*</span></label>
@@ -49,19 +56,24 @@
           <label class="block text-sm font-medium mb-1">Registry <span class="text-red-500">*</span></label>
           <input name="artefact_registry" required placeholder="ghcr.io"
                  value="{{.inventoryRegistry}}"
-                 class="border rounded p-2 w-full" />
+                 {{if .inventoryItemID}}readonly{{end}}
+                 class="border rounded p-2 w-full {{if .inventoryItemID}}bg-slate-50 text-slate-600{{end}}" />
         </div>
         <div class="col-span-2">
-          <label class="block text-sm font-medium mb-1">Full Reference</label>
+          <label class="block text-sm font-medium mb-1">Resolved Reference</label>
           <input name="artefact_reference" placeholder="ghcr.io/company/orders-api:v1.2.3 or @sha256:..."
-                 value="{{.inventoryPackageURL}}"
-                 class="border rounded p-2 w-full" />
-          <p class="text-xs text-slate-500 mt-1">Use <a href="/oci/discover" target="_blank" class="underline">OCI Discovery</a> to browse GHCR repositories and resolve the digest.</p>
+                 value="{{.inventoryResolvedReference}}"
+                 {{if .inventoryItemID}}readonly{{end}}
+                 class="border rounded p-2 w-full {{if .inventoryItemID}}bg-slate-50 text-slate-600{{end}}" />
+          <p class="text-xs text-slate-500 mt-1">Inventory provides the repository reference used for this assessment.</p>
         </div>
         <div class="col-span-2">
           <label class="block text-sm font-medium mb-1">Artefact Digest <span class="text-red-500">*</span></label>
-          <input name="artefact_digest" required placeholder="sha256:..." class="border rounded p-2 w-full font-mono text-sm" />
-          <p class="text-xs text-slate-500 mt-1">The digest pins the exact artefact. Run <code>crane digest &lt;ref&gt;</code> or use the OCI Discovery page to resolve it from GHCR.</p>
+          <input name="artefact_digest" required placeholder="sha256:..."
+                 value="{{.inventoryDigest}}"
+                 {{if .inventoryItemID}}readonly{{end}}
+                 class="border rounded p-2 w-full font-mono text-sm {{if .inventoryItemID}}bg-slate-50 text-slate-600{{end}}" />
+          <p class="text-xs text-slate-500 mt-1">The resolved digest is populated from inventory discovery evidence.</p>
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Review Date</label>
@@ -69,7 +81,7 @@
           <p class="text-xs text-slate-500 mt-1">Defaults to one year from today.</p>
         </div>
       </div>
-      <button class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium">Continue to Sensitivity →</button>
+      <button class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium disabled:bg-slate-400" {{if and .inventoryItemID (not .discoveryReady)}}disabled{{end}}>Continue to Sensitivity →</button>
     </form>
   </main>
 </body>

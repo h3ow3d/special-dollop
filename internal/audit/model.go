@@ -22,6 +22,7 @@ const (
 	ActionInventoryActivated        Action = "inventory.activated"
 	ActionInventoryDeactivated      Action = "inventory.deactivated"
 	ActionInventoryOwnershipChanged Action = "inventory.ownership_changed"
+	ActionInventoryDiscoveryRefresh Action = "inventory.discovery_refreshed"
 )
 
 // Entry is a single audit log record.

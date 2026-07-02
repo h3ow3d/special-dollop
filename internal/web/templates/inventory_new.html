@@ -17,7 +17,7 @@
     </nav>
 
     <h1 class="text-2xl font-semibold">Register a Package</h1>
-    <p class="text-sm text-slate-600">Add a new software package to the inventory. Only registered packages can be assessed.</p>
+    <p class="text-sm text-slate-600">Add a new software package to the inventory. Registered inventory items are enriched with OCI metadata and evidence automatically.</p>
 
     <form method="post" action="/inventory" class="bg-white border rounded-lg p-6 space-y-5">
       <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
@@ -58,10 +58,17 @@
                  class="border rounded p-2 w-full text-sm" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">Package Name</label>
-          <input name="package_name" placeholder="e.g. org/package"
+          <label class="block text-sm font-medium mb-1">Repository <span class="text-red-500">*</span></label>
+          <input name="package_name" required placeholder="e.g. org/package"
                  class="border rounded p-2 w-full text-sm" />
         </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Reference <span class="text-red-500">*</span></label>
+        <input name="reference" required placeholder="e.g. latest or sha256:..."
+               class="border rounded p-2 w-full text-sm font-mono" />
+        <p class="text-xs text-slate-500 mt-1">Inventory discovery resolves the digest and evidence for this repository reference.</p>
       </div>
 
       <div>
