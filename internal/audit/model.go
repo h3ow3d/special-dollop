@@ -13,6 +13,7 @@ const (
 	ActionDevLogout              Action = "dev.logout"
 	ActionRoleChanged            Action = "user.role_changed"
 	ActionRoleImpersonation      Action = "Role Impersonation"
+	ActionUserImpersonation      Action = "User Impersonation"
 	ActionTeamChanged            Action = "user.team_changed"
 	ActionUserActivated          Action = "user.activated"
 	ActionUserDeactivated        Action = "user.deactivated"
