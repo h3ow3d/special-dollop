@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  {{if .isAdmin}}
   <title>Inventory – CDSCAM Assurance Platform</title>
+  {{else}}
+  <title>Team Inventory – CDSCAM Assurance Platform</title>
+  {{end}}
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -14,8 +18,13 @@
       <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Inventory</p>
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
+          {{if .isAdmin}}
           <h1 class="text-2xl font-semibold">Software Inventory</h1>
           <p class="text-sm text-slate-600 mt-1">The authoritative list of registered packages that may be assessed.</p>
+          {{else}}
+          <h1 class="text-2xl font-semibold">Team Inventory</h1>
+          <p class="text-sm text-slate-600 mt-1">Viewing inventory for: <span class="font-medium text-slate-900">{{.teamName}}</span></p>
+          {{end}}
         </div>
         {{if or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor")}}
         <a href="/inventory/new" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shrink-0">
@@ -32,6 +41,7 @@
         <input name="search" value="{{.search}}" placeholder="Package name…"
                class="border rounded p-2 w-full text-sm" />
       </div>
+      {{if .isAdmin}}
       <div class="min-w-[160px]">
         <label class="block text-xs font-medium text-slate-600 mb-1">Filter by Team</label>
         <select name="team_id" class="border rounded p-2 w-full text-sm">
@@ -41,6 +51,7 @@
           {{end}}
         </select>
       </div>
+      {{end}}
       <div class="min-w-[140px]">
         <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
         <select name="status" class="border rounded p-2 w-full text-sm">
@@ -50,7 +61,7 @@
         </select>
       </div>
       <button class="bg-slate-700 text-white px-4 py-2 rounded text-sm font-medium">Filter</button>
-      {{if or .search .filterTeam .filterStatus}}
+      {{if or .search .filterTeamID .filterStatus}}
       <a href="/inventory" class="text-sm text-slate-500 hover:text-slate-700 py-2">Clear</a>
       {{end}}
     </form>
@@ -61,7 +72,9 @@
         <thead class="bg-slate-100 text-left">
           <tr>
             <th class="px-4 py-3 font-medium">Package Name</th>
+            {{if .isAdmin}}
             <th class="px-4 py-3 font-medium">Owning Team</th>
+            {{end}}
             <th class="px-4 py-3 font-medium">Registry</th>
             <th class="px-4 py-3 font-medium">Status</th>
             <th class="px-4 py-3 font-medium">Last Updated</th>
@@ -75,7 +88,9 @@
               <div class="font-medium">{{.Name}}</div>
               {{if .PackageName}}<div class="text-xs text-slate-500">{{.PackageName}}</div>{{end}}
             </td>
+            {{if $.isAdmin}}
             <td class="px-4 py-3 text-slate-700">{{.TeamName}}</td>
+            {{end}}
             <td class="px-4 py-3 text-slate-600">
               <span class="font-mono text-xs">{{.Registry}}</span>
             </td>
@@ -93,9 +108,9 @@
           </tr>
           {{else}}
           <tr>
-            <td colspan="6" class="px-4 py-10 text-center text-slate-500">
+            <td colspan="{{if .isAdmin}}6{{else}}5{{end}}" class="px-4 py-10 text-center text-slate-500">
               No inventory items found.
-              {{if or $.search $.filterTeam $.filterStatus}}
+              {{if or $.search $.filterTeamID $.filterStatus}}
                 <a href="/inventory" class="underline text-blue-600">Clear filters</a>
               {{end}}
             </td>

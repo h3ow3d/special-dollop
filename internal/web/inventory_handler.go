@@ -57,12 +57,13 @@ func (ih *InventoryHandler) RegisterRoutes(r chi.Router) {
 
 func (ih *InventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 	session, _ := security.SessionFromContext(r.Context())
+	isAdmin := session.EffectiveRoleSlug() == string(rbac.RoleAdministrator)
 
 	var items []*inventory.InventoryItemWithTeam
 	var err error
 
 	// Administrators see all inventory. Assessors and Readers see only their team's items.
-	if session.EffectiveRoleSlug() == string(rbac.RoleAdministrator) {
+	if isAdmin {
 		items, err = ih.inventorySvc.List(r.Context())
 	} else if session.TeamID != nil {
 		items, err = ih.inventorySvc.ListByTeam(r.Context(), *session.TeamID)
@@ -74,22 +75,24 @@ func (ih *InventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	// Apply optional search and filter query params.
 	search := strings.ToLower(r.URL.Query().Get("search"))
-	filterTeamStr := r.URL.Query().Get("team_id")
 	filterStatus := r.URL.Query().Get("status")
 
 	var filterTeamID int64
-	if filterTeamStr != "" {
-		filterTeamID, _ = strconv.ParseInt(filterTeamStr, 10, 64)
+	if isAdmin {
+		filterTeamStr := r.URL.Query().Get("team_id")
+		if filterTeamStr != "" {
+			filterTeamID, _ = strconv.ParseInt(filterTeamStr, 10, 64)
+		}
 	}
 
-	if search != "" || filterTeamID != 0 || filterStatus != "" {
+	if search != "" || filterStatus != "" || (isAdmin && filterTeamID != 0) {
 		filtered := items[:0]
 		for _, item := range items {
 			if search != "" && !strings.Contains(strings.ToLower(item.Name), search) &&
 				!strings.Contains(strings.ToLower(item.PackageName), search) {
 				continue
 			}
-			if filterTeamID != 0 && item.TeamID != filterTeamID {
+			if isAdmin && filterTeamID != 0 && item.TeamID != filterTeamID {
 				continue
 			}
 			if filterStatus == "active" && !item.Active {
@@ -103,16 +106,25 @@ func (ih *InventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 		items = filtered
 	}
 
-	ts, _ := ih.teamSvc.List(r.Context())
-	ih.tmpl.render(w, r, "inventory_list.html", map[string]any{
+	data := map[string]any{
 		"items":        items,
-		"teams":        ts,
 		"session":      session,
 		"search":       r.URL.Query().Get("search"),
 		"filterTeamID": filterTeamID,
 		"filterStatus": filterStatus,
+		"isAdmin":      isAdmin,
+		"teamName":     session.EffectiveTeamName,
 		"csrf":         csrf.Token(r),
-	})
+	}
+	if isAdmin {
+		ts, err := ih.teamSvc.List(r.Context())
+		if err != nil {
+			http.Error(w, "failed to list teams: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		data["teams"] = ts
+	}
+	ih.tmpl.render(w, r, "inventory_list.html", data)
 }
 
 // ── Detail ────────────────────────────────────────────────────────────────────
@@ -143,11 +155,11 @@ func (ih *InventoryHandler) detail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ih.tmpl.render(w, r, "inventory_detail.html", map[string]any{
-		"item":      item,
-		"team":      owningTeam,
-		"canEdit":   canEdit,
-		"session":   session,
-		"csrf":      csrf.Token(r),
+		"item":    item,
+		"team":    owningTeam,
+		"canEdit": canEdit,
+		"session": session,
+		"csrf":    csrf.Token(r),
 	})
 }
 
@@ -155,16 +167,20 @@ func (ih *InventoryHandler) detail(w http.ResponseWriter, r *http.Request) {
 
 func (ih *InventoryHandler) newForm(w http.ResponseWriter, r *http.Request) {
 	session, _ := security.SessionFromContext(r.Context())
-	ts, err := ih.teamSvc.List(r.Context())
-	if err != nil {
-		http.Error(w, "failed to list teams: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	ih.tmpl.render(w, r, "inventory_new.html", map[string]any{
-		"teams":   ts,
+	isAdmin := session.EffectiveRoleSlug() == string(rbac.RoleAdministrator)
+	data := map[string]any{
 		"session": session,
 		"csrf":    csrf.Token(r),
-	})
+	}
+	if isAdmin {
+		ts, err := ih.teamSvc.List(r.Context())
+		if err != nil {
+			http.Error(w, "failed to list teams: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		data["teams"] = ts
+	}
+	ih.tmpl.render(w, r, "inventory_new.html", data)
 }
 
 func (ih *InventoryHandler) create(w http.ResponseWriter, r *http.Request) {
@@ -214,10 +230,8 @@ func (ih *InventoryHandler) editForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	ts, _ := ih.teamSvc.List(r.Context())
 	ih.tmpl.render(w, r, "inventory_edit.html", map[string]any{
 		"item":    item,
-		"teams":   ts,
 		"session": session,
 		"csrf":    csrf.Token(r),
 	})
