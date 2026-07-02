@@ -433,3 +433,46 @@ func TestRefreshRepositorySidecarUnknownSubjectDropped(t *testing.T) {
 	}
 }
 
+func TestRefreshRepositoryReferrersIndexTagsExcluded(t *testing.T) {
+	// ORAS fallback referrers index tags (sha256-<hex>) are internal tags and
+	// must not be persisted as primary tags/digests.
+	imgHex := strings.Repeat("f", 64)
+	imgDigest := "sha256:" + imgHex
+	referrersIndexTag := "sha256-" + imgHex
+
+	repo := newMemRepo()
+	disc := &fakeDiscoverer{
+		tags: []string{"v1.0.0", referrersIndexTag},
+		tagMap: map[string]*TagResolution{
+			"v1.0.0": {Tag: "v1.0.0", Digest: imgDigest, MediaType: "application/vnd.oci.image.manifest.v1+json"},
+		},
+		referrers: map[string][]*DigestEvidence{
+			imgDigest: {},
+		},
+	}
+	svc := NewService(repo, disc)
+
+	if err := svc.RefreshRepository(context.Background(), DiscoveryTarget{
+		InventoryItemID: 12,
+		Registry:        "ghcr.io",
+		Repository:      "org/repo",
+	}); err != nil {
+		t.Fatalf("RefreshRepository: %v", err)
+	}
+
+	digests, _ := svc.ListDigestsByItem(context.Background(), 12)
+	if len(digests) != 1 {
+		t.Fatalf("expected 1 primary digest, got %d", len(digests))
+	}
+	if digests[0].Digest != imgDigest {
+		t.Fatalf("expected image digest %q, got %q", imgDigest, digests[0].Digest)
+	}
+
+	tags, _ := svc.ListTagsByItem(context.Background(), 12)
+	if len(tags) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(tags))
+	}
+	if tags[0].Tag != "v1.0.0" {
+		t.Fatalf("expected tag %q, got %q", "v1.0.0", tags[0].Tag)
+	}
+}
