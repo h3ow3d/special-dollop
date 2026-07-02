@@ -393,13 +393,17 @@ func (ih *InventoryHandler) renderDetailPage(w http.ResponseWriter, r *http.Requ
 
 	digests, err := ih.inventorySvc.GetArtifactDigests(r.Context(), item.ID)
 	if err != nil {
-		http.Error(w, "failed to load artifact digests: "+err.Error(), http.StatusInternalServerError)
-		return
+		if discoveryError == "" {
+			http.Error(w, "failed to load artifact digests: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	tags, err := ih.inventorySvc.GetRepositoryTags(r.Context(), item.ID)
 	if err != nil {
-		http.Error(w, "failed to load repository tags: "+err.Error(), http.StatusInternalServerError)
-		return
+		if discoveryError == "" {
+			http.Error(w, "failed to load repository tags: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if statusCode != http.StatusOK {
