@@ -83,6 +83,9 @@ r.Use(middleware.Recoverer)
 r.Use(middleware.Timeout(30 * time.Second))
 r.Use(security.SecurityHeaders)
 r.Use(h.oauth.AuthMiddleware)
+if !h.oauth.SecureCookies() {
+	r.Use(plaintextHTTPMiddleware)
+}
 r.Use(csrf.Protect(csrfKey, csrf.Secure(h.oauth.SecureCookies()), csrf.CookieName("clph_csrf")))
 
 // Health probes
@@ -465,4 +468,12 @@ refs = append(refs, domain.EvidenceRef{Reference: line, Reviewed: false})
 }
 }
 return refs
+}
+
+// plaintextHTTPMiddleware signals to the gorilla/csrf middleware that requests
+// are served over plaintext HTTP, so origin checks use the "http" scheme.
+func plaintextHTTPMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, csrf.PlaintextHTTPRequest(r))
+	})
 }
