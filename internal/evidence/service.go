@@ -84,14 +84,14 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 	// Step 2: resolve each tag to a digest and upsert rows.
 	// Track unique digests discovered in this scan.
 	seenDigests := make(map[string]*ArtifactDigest)
-	skippedTags := 0
+	skippedTagCount := 0
 	processedTags := 0
 	for _, tag := range tags {
 		processedTags++
 		resolution, err := s.discoverer.ResolveTag(ctx, target.Registry, target.Repository, tag)
 		if err != nil {
 			// Non-fatal: skip this tag and continue with the next.
-			skippedTags++
+			skippedTagCount++
 			slog.Warn("inventory discovery tag resolution failed",
 				"operation", "evidence.resolve_tag",
 				"user", user,
@@ -154,7 +154,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 		"team", team,
 		"inventory_item_id", target.InventoryItemID,
 		"unique_digest_count", len(seenDigests),
-		"skipped_tag_count", skippedTags,
+		"skipped_tag_count", skippedTagCount,
 	)
 	discoveredEvidenceCount := 0
 	processedDigests := 0
