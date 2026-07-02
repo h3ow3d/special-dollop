@@ -460,7 +460,10 @@ func TestRefreshRepositoryReferrersIndexTagsExcluded(t *testing.T) {
 		t.Fatalf("RefreshRepository: %v", err)
 	}
 
-	digests, _ := svc.ListDigestsByItem(context.Background(), 12)
+	digests, err := svc.ListDigestsByItem(context.Background(), 12)
+	if err != nil {
+		t.Fatalf("ListDigestsByItem: %v", err)
+	}
 	if len(digests) != 1 {
 		t.Fatalf("expected 1 primary digest, got %d", len(digests))
 	}
@@ -468,7 +471,10 @@ func TestRefreshRepositoryReferrersIndexTagsExcluded(t *testing.T) {
 		t.Fatalf("expected image digest %q, got %q", imgDigest, digests[0].Digest)
 	}
 
-	tags, _ := svc.ListTagsByItem(context.Background(), 12)
+	tags, err := svc.ListTagsByItem(context.Background(), 12)
+	if err != nil {
+		t.Fatalf("ListTagsByItem: %v", err)
+	}
 	if len(tags) != 1 {
 		t.Fatalf("expected 1 tag, got %d", len(tags))
 	}
