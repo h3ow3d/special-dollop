@@ -7,10 +7,8 @@
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
-    <span class="font-semibold">CLPH – OCI Discovery</span>
-    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
-  </header>
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
   <main class="max-w-2xl mx-auto p-8 space-y-6">
     <h1 class="text-2xl font-semibold">OCI Artefact Discovery</h1>
     <p class="text-slate-600 text-sm">Enter a GitHub Container Registry repository and tag to resolve the artefact digest. Copy the digest into the assessment wizard.</p>

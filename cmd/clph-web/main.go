@@ -62,6 +62,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("handler: %v", err)
 	}
+	h.WithDevelopmentMode(getenv("DEV_MODE", "false") == "true")
 
 	// PostgreSQL – required; provided by the Docker Compose stack.
 	dsn := getenv("DATABASE_URL", "")
