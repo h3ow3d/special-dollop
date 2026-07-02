@@ -137,7 +137,9 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 
 	// Step 3: discover referrer evidence for every unique digest found above.
 	discoveredEvidenceCount := 0
+	processedDigests := 0
 	for digest, d := range seenDigests {
+		processedDigests++
 		referrers, warnings, err := s.discoverer.ListReferrers(ctx, target.Registry, target.Repository, digest)
 		if err != nil {
 			logUnexpectedError("evidence.list_referrers", user, role, team, target.InventoryItemID, err)
@@ -179,7 +181,8 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 			"role", role,
 			"team", team,
 			"inventory_item_id", target.InventoryItemID,
-			"processed_digests", len(seenDigests),
+			"processed_digests", processedDigests,
+			"total_digests", len(seenDigests),
 			"digest", digest,
 		)
 	}
