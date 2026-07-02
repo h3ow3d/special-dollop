@@ -61,8 +61,12 @@ func (ih *InventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 	var items []*inventory.InventoryItemWithTeam
 	var err error
 
-	// All roles can see all inventory items.
-	items, err = ih.inventorySvc.List(r.Context())
+	// Administrators see all inventory. Assessors and Readers see only their team's items.
+	if session.EffectiveRoleSlug() == string(rbac.RoleAdministrator) {
+		items, err = ih.inventorySvc.List(r.Context())
+	} else if session.TeamID != nil {
+		items, err = ih.inventorySvc.ListByTeam(r.Context(), *session.TeamID)
+	}
 	if err != nil {
 		http.Error(w, "failed to list inventory: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -119,6 +123,15 @@ func (ih *InventoryHandler) detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session, _ := security.SessionFromContext(r.Context())
+
+	// Team isolation: non-administrators may only view items owned by their team.
+	if session.EffectiveRoleSlug() != string(rbac.RoleAdministrator) {
+		if session.TeamID == nil || *session.TeamID != item.TeamID {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
 	owningTeam, _ := ih.teamSvc.GetByID(r.Context(), item.TeamID)
 
 	canEdit := false
