@@ -7,12 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -105,8 +103,8 @@ func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envel
 		oras.PackManifestVersion1_1,
 		dsseEnvelopeMediaType,
 		oras.PackManifestOptions{
-			Subject: &subjectDesc,
-			Layers:  []ocispec.Descriptor{layerDesc},
+			Subject:             &subjectDesc,
+			Layers:              []ocispec.Descriptor{layerDesc},
 			ManifestAnnotations: manifestAnnotations(envelope),
 		},
 	)
@@ -131,15 +129,14 @@ func normalizeReference(registryHost, ref string) (registry.Reference, error) {
 		return registry.Reference{}, errors.New("artefact reference is required")
 	}
 
-	parsed, err := registry.ParseReference(ref)
+	parseInput := ref
+	if registryHost != "" && !hasExplicitRegistry(ref) {
+		parseInput = registryHost + "/" + strings.TrimPrefix(ref, "/")
+	}
+
+	parsed, err := registry.ParseReference(parseInput)
 	if err != nil {
-		if registryHost == "" {
-			return registry.Reference{}, fmt.Errorf("parse artefact reference: %w", err)
-		}
-		parsed, err = registry.ParseReference(registryHost + "/" + strings.TrimPrefix(ref, "/"))
-		if err != nil {
-			return registry.Reference{}, fmt.Errorf("parse artefact reference: %w", err)
-		}
+		return registry.Reference{}, fmt.Errorf("parse artefact reference: %w", err)
 	}
 
 	if registryHost != "" && parsed.Registry != registryHost {
@@ -149,6 +146,14 @@ func normalizeReference(registryHost, ref string) (registry.Reference, error) {
 		return registry.Reference{}, errors.New("artefact reference must include a tag or digest")
 	}
 	return parsed, nil
+}
+
+func hasExplicitRegistry(ref string) bool {
+	first, _, found := strings.Cut(ref, "/")
+	if !found {
+		return false
+	}
+	return first == "localhost" || strings.Contains(first, ".") || strings.Contains(first, ":")
 }
 
 func manifestAnnotations(envelope []byte) map[string]string {
@@ -186,10 +191,4 @@ func predicateTypeFromEnvelope(envelope []byte) string {
 		return ""
 	}
 	return statement.PredicateType
-}
-
-// NewHTTPClient returns a basic HTTP client that can be reused by callers that
-// need transport customization in tests.
-func NewHTTPClient() *http.Client {
-	return retry.DefaultClient
 }
