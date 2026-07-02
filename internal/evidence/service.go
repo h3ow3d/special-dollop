@@ -112,6 +112,11 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 				)
 				continue
 			}
+			// ORAS fallback referrers index tags (sha256-<subject-hex>) are internal
+			// implementation details and should not be treated as primary artifacts.
+			if _, ok := parseReferrersIndexTagSubject(tag); ok {
+				continue
+			}
 			sidecarsBySubject[subjectDigest] = append(sidecarsBySubject[subjectDigest], &DigestEvidence{
 				Type:         classifySidecarEvidence(tag, resolution),
 				Name:         tag,
@@ -319,12 +324,24 @@ func logUnexpectedError(operation, user, role, team string, inventoryItemID int6
 // sha256-<64 hex chars>.(sig|att|sbom). These encode the subject digest in the
 // tag name and must not be treated as primary container image artifacts.
 var sidecarTagRE = regexp.MustCompile(`^sha256-([a-f0-9]{64})\.(sig|att|sbom)$`)
+var referrersIndexTagRE = regexp.MustCompile(`^sha256-([a-f0-9]{64})$`)
 
 // parseSidecarTagSubject returns the OCI subject digest encoded in a cosign
 // fallback referrers tag (e.g. "sha256-abc…123.sig" → "sha256:abc…123").
 // Returns ok=false when tag does not follow that naming scheme.
 func parseSidecarTagSubject(tag string) (subjectDigest string, ok bool) {
 	m := sidecarTagRE.FindStringSubmatch(tag)
+	if m == nil {
+		return "", false
+	}
+	return "sha256:" + m[1], true
+}
+
+// parseReferrersIndexTagSubject returns the OCI subject digest encoded in an
+// ORAS fallback referrers index tag (e.g. "sha256-abc…123" → "sha256:abc…123").
+// Returns ok=false when tag does not follow that naming scheme.
+func parseReferrersIndexTagSubject(tag string) (subjectDigest string, ok bool) {
+	m := referrersIndexTagRE.FindStringSubmatch(tag)
 	if m == nil {
 		return "", false
 	}
