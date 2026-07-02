@@ -25,9 +25,8 @@ func (s *Service) Create(ctx context.Context, item *InventoryItem) error {
 	if err := s.repo.Create(ctx, item); err != nil {
 		return fmt.Errorf("create inventory item: %w", err)
 	}
-	if err := s.refreshEvidence(ctx, item); err != nil {
-		return fmt.Errorf("refresh inventory evidence: %w", err)
-	}
+	// Evidence refresh is best-effort; errors are logged but not propagated.
+	_ = s.refreshEvidence(ctx, item)
 	return nil
 }
 
@@ -43,9 +42,8 @@ func (s *Service) Update(ctx context.Context, item *InventoryItem) error {
 	if err := s.repo.Update(ctx, item); err != nil {
 		return fmt.Errorf("update inventory item: %w", err)
 	}
-	if err := s.refreshEvidence(ctx, item); err != nil {
-		return fmt.Errorf("refresh inventory evidence: %w", err)
-	}
+	// Evidence refresh is best-effort; errors are logged but not propagated.
+	_ = s.refreshEvidence(ctx, item)
 	return nil
 }
 
@@ -70,6 +68,8 @@ func (s *Service) CountByTeam(ctx context.Context) (map[int64]int, error) {
 }
 
 // RefreshEvidence re-runs OCI discovery for the specified inventory item.
+// Unlike the best-effort refresh inside Create/Update, this method propagates
+// errors so the HTTP handler can surface them to the user.
 func (s *Service) RefreshEvidence(ctx context.Context, id int64) error {
 	item, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -78,22 +78,48 @@ func (s *Service) RefreshEvidence(ctx context.Context, id int64) error {
 	return s.refreshEvidence(ctx, item)
 }
 
-// GetArtifactMetadata returns the latest persisted artifact metadata, if any.
-func (s *Service) GetArtifactMetadata(ctx context.Context, id int64) (*evidence.ArtifactMetadata, error) {
+// GetArtifactDigests returns all discovered immutable digests for an inventory
+// item, including their evidence and the tag names that resolve to each digest.
+func (s *Service) GetArtifactDigests(ctx context.Context, id int64) ([]*evidence.ArtifactDigest, error) {
 	if s.evidenceSvc == nil {
 		return nil, nil
 	}
-	return s.evidenceSvc.GetByInventoryItemID(ctx, id)
+	return s.evidenceSvc.ListDigestsByItem(ctx, id)
+}
+
+// GetRepositoryTags returns all discovered mutable tags for an inventory item.
+func (s *Service) GetRepositoryTags(ctx context.Context, id int64) ([]*evidence.RepositoryTag, error) {
+	if s.evidenceSvc == nil {
+		return nil, nil
+	}
+	return s.evidenceSvc.ListTagsByItem(ctx, id)
+}
+
+// GetDigestByID returns a single artifact digest with its evidence.
+func (s *Service) GetDigestByID(ctx context.Context, digestID int64) (*evidence.ArtifactDigest, error) {
+	if s.evidenceSvc == nil {
+		return nil, nil
+	}
+	return s.evidenceSvc.GetDigestByID(ctx, digestID)
+}
+
+// GetSummaries returns a per-item discovery summary map for efficient display
+// in the inventory list view.
+func (s *Service) GetSummaries(ctx context.Context) (map[int64]*evidence.RepositorySummary, error) {
+	if s.evidenceSvc == nil {
+		return nil, nil
+	}
+	return s.evidenceSvc.GetSummaries(ctx)
 }
 
 func (s *Service) refreshEvidence(ctx context.Context, item *InventoryItem) error {
 	if s.evidenceSvc == nil || item == nil {
 		return nil
 	}
-	return s.evidenceSvc.Refresh(ctx, evidence.DiscoveryTarget{
+	return s.evidenceSvc.RefreshRepository(ctx, evidence.DiscoveryTarget{
 		InventoryItemID: item.ID,
 		Registry:        item.Registry,
 		Repository:      item.PackageName,
-		Reference:       item.Reference,
 	})
 }
+

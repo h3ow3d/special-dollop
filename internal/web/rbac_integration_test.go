@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/h3ow3d/special-dollop/internal/audit"
 	"github.com/h3ow3d/special-dollop/internal/domain"
+	"github.com/h3ow3d/special-dollop/internal/evidence"
 	"github.com/h3ow3d/special-dollop/internal/inventory"
 	"github.com/h3ow3d/special-dollop/internal/teams"
 	"github.com/h3ow3d/special-dollop/internal/users"
@@ -189,6 +190,54 @@ func (r *testInventoryRepo) CountByTeam(_ context.Context) (map[int64]int, error
 		}
 	}
 	return counts, nil
+}
+
+// ── fake evidence repository ───────────────────────────────────────────────
+
+type testEvidenceRepo struct {
+	digests map[int64]*evidence.ArtifactDigest
+}
+
+func newTestEvidenceRepo(digs ...*evidence.ArtifactDigest) *testEvidenceRepo {
+	m := make(map[int64]*evidence.ArtifactDigest, len(digs))
+	for _, d := range digs {
+		m[d.ID] = d
+	}
+	return &testEvidenceRepo{digests: m}
+}
+
+func (r *testEvidenceRepo) UpsertDigest(_ context.Context, d *evidence.ArtifactDigest) error {
+	return nil
+}
+func (r *testEvidenceRepo) UpdateDigestStatus(_ context.Context, id int64, _ evidence.DiscoveryStatus, _ string, _ time.Time) error {
+	return nil
+}
+func (r *testEvidenceRepo) GetDigestByID(_ context.Context, id int64) (*evidence.ArtifactDigest, error) {
+	if d, ok := r.digests[id]; ok {
+		cp := *d
+		return &cp, nil
+	}
+	return nil, nil
+}
+func (r *testEvidenceRepo) ListDigestsByItem(_ context.Context, inventoryItemID int64) ([]*evidence.ArtifactDigest, error) {
+	var out []*evidence.ArtifactDigest
+	for _, d := range r.digests {
+		if d.InventoryItemID == inventoryItemID {
+			cp := *d
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
+}
+func (r *testEvidenceRepo) UpsertTag(_ context.Context, _ *evidence.RepositoryTag) error { return nil }
+func (r *testEvidenceRepo) ListTagsByItem(_ context.Context, _ int64) ([]*evidence.RepositoryTag, error) {
+	return nil, nil
+}
+func (r *testEvidenceRepo) ReplaceEvidence(_ context.Context, _ int64, _ []*evidence.DigestEvidence) error {
+	return nil
+}
+func (r *testEvidenceRepo) GetSummaries(_ context.Context) (map[int64]*evidence.RepositorySummary, error) {
+	return nil, nil
 }
 
 func testRoles() []*users.Role {
@@ -455,12 +504,18 @@ func newIsolationTestHandler(t *testing.T) (h *Handler, platformItemID, appsItem
 
 	invRepo := &testInventoryRepo{
 		items: []*inventory.InventoryItem{
-			{ID: 1, Name: "platform-item", TeamID: platformTeamID, Registry: "ghcr.io", PackageName: "platform/item", Reference: "latest", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			{ID: 2, Name: "apps-item", TeamID: applicationsTeamID, Registry: "ghcr.io", PackageName: "apps/item", Reference: "latest", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: 1, Name: "platform-item", TeamID: platformTeamID, Registry: "ghcr.io", PackageName: "platform/item", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: 2, Name: "apps-item", TeamID: applicationsTeamID, Registry: "ghcr.io", PackageName: "apps/item", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		},
 		nextID: 3, // next auto-increment value after the two seeded items
 	}
-	inventorySvc := inventory.NewService(invRepo, nil)
+	// Seed one digest per item so wizard tests can supply a digest_id.
+	evidenceRepo := newTestEvidenceRepo(
+		&evidence.ArtifactDigest{ID: 1, InventoryItemID: 1, Digest: "sha256:platform000", DiscoveryStatus: evidence.DiscoveryStatusSuccess},
+		&evidence.ArtifactDigest{ID: 2, InventoryItemID: 2, Digest: "sha256:apps000000000", DiscoveryStatus: evidence.DiscoveryStatusSuccess},
+	)
+	evidenceSvc := evidence.NewService(evidenceRepo, nil)
+	inventorySvc := inventory.NewService(invRepo, evidenceSvc)
 
 	pID := int64(platformTeamID)
 	userSvc := users.NewService(&testAdminUserRepo{
@@ -718,6 +773,7 @@ func TestTeamIsolation_InventoryDetail(t *testing.T) {
 func wizardForm(inventoryItemID int64) url.Values {
 	f := url.Values{}
 	f.Set("inventory_item_id", fmt.Sprintf("%d", inventoryItemID))
+	f.Set("digest_id", fmt.Sprintf("%d", inventoryItemID)) // digest IDs match item IDs in test fixtures
 	f.Set("artefact_name", "test-artefact")
 	f.Set("artefact_type", "application-container")
 	f.Set("artefact_digest", "sha256:abc123def456")

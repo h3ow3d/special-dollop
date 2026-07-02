@@ -102,6 +102,12 @@ func templateFuncs() template.FuncMap {
 		"sectionResp": func(state *domain.AssessmentState, name domain.SectionName) domain.SectionResponse {
 			return state.Sections[name]
 		},
+		"shortDigest": func(digest string) string {
+			if len(digest) > 19 {
+				return digest[:19] + "…"
+			}
+			return digest
+		},
 		"stepLabel": func(step int) string {
 			labels := []string{
 				"Artefact Information",
@@ -319,38 +325,66 @@ func (h *Handler) wizardStart(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"csrf": csrf.Token(r),
 	}
-	// If an inventory item ID is provided, pre-populate artefact information.
+	// If an inventory item ID is provided, require a digest_id to pre-populate.
 	if h.inventory != nil {
 		if idStr := r.URL.Query().Get("inventory_item_id"); idStr != "" {
-			if id, err := strconv.ParseInt(idStr, 10, 64); err == nil && id > 0 {
-				item, err := h.inventory.inventorySvc.GetByID(r.Context(), id)
-				if err == nil {
-					// Team isolation: non-administrators may not pre-populate from
-					// an inventory item that belongs to another team.
-					session, _ := security.SessionFromContext(r.Context())
-					if session.EffectiveRoleSlug() != string(rbac.RoleAdministrator) {
-						if session.TeamID == nil || *session.TeamID != item.TeamID {
-							http.Error(w, "forbidden", http.StatusForbidden)
-							return
-						}
-					}
-					data["inventoryItemID"] = id
-					data["inventoryItemName"] = item.Name
-					data["inventoryRegistry"] = item.Registry
-					data["inventoryRepository"] = item.PackageName
-					data["inventoryPackageURL"] = item.PackageURL
-					data["inventoryReference"] = item.Reference
-					if metadata, err := h.inventory.inventorySvc.GetArtifactMetadata(r.Context(), id); err == nil && metadata != nil {
-						data["artifactMetadata"] = metadata
-						data["inventoryResolvedReference"] = firstNonEmpty(metadata.ResolvedReference, composeReference(item.Registry, item.PackageName, item.Reference))
-						data["inventoryDigest"] = metadata.Digest
-						data["discoveryReady"] = metadata.Digest != ""
-					} else {
-						data["inventoryResolvedReference"] = composeReference(item.Registry, item.PackageName, item.Reference)
-						data["discoveryReady"] = false
-					}
+			id, err := strconv.ParseInt(idStr, 10, 64)
+			if err != nil || id <= 0 {
+				http.Redirect(w, r, "/inventory", http.StatusFound)
+				return
+			}
+			item, err := h.inventory.inventorySvc.GetByID(r.Context(), id)
+			if err != nil {
+				if errors.Is(err, inventory.ErrNotFound) {
+					http.Error(w, "inventory item not found", http.StatusNotFound)
+				} else {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+				return
+			}
+			// Team isolation: non-administrators may not pre-populate from
+			// an inventory item that belongs to another team.
+			session, _ := security.SessionFromContext(r.Context())
+			if session.EffectiveRoleSlug() != string(rbac.RoleAdministrator) {
+				if session.TeamID == nil || *session.TeamID != item.TeamID {
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
 				}
 			}
+
+			// Without a digest_id, redirect back to the inventory detail page so
+			// the user can pick a specific immutable digest to assess.
+			digestIDStr := r.URL.Query().Get("digest_id")
+			digestID, digestIDErr := strconv.ParseInt(digestIDStr, 10, 64)
+			if digestIDErr != nil || digestID <= 0 {
+				http.Redirect(w, r, fmt.Sprintf("/inventory/%d", id), http.StatusFound)
+				return
+			}
+
+			digest, err := h.inventory.inventorySvc.GetDigestByID(r.Context(), digestID)
+			if err != nil || digest == nil || digest.InventoryItemID != id {
+				http.Redirect(w, r, fmt.Sprintf("/inventory/%d", id), http.StatusFound)
+				return
+			}
+
+			// Collect current tag names pointing at this digest.
+			tags, _ := h.inventory.inventorySvc.GetRepositoryTags(r.Context(), id)
+			var tagNames []string
+			for _, t := range tags {
+				if t.ArtifactDigestID != nil && *t.ArtifactDigestID == digestID {
+					tagNames = append(tagNames, t.Tag)
+				}
+			}
+
+			data["inventoryItemID"] = id
+			data["digestID"] = digestID
+			data["inventoryItemName"] = item.Name
+			data["inventoryRegistry"] = item.Registry
+			data["inventoryRepository"] = item.PackageName
+			data["inventoryDigest"] = digest.Digest
+			data["inventoryTagNames"] = tagNames
+			data["inventoryResolvedReference"] = fmt.Sprintf("%s/%s@%s", item.Registry, item.PackageName, digest.Digest)
+			data["discoveryReady"] = true
 		}
 	}
 	h.render(w, r, "wizard_artefact.html", data)
@@ -359,8 +393,9 @@ func (h *Handler) wizardStart(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 	user, _ := security.UserFromContext(r.Context())
 
-	// If inventory is wired, require an inventory item ID.
+	// If inventory is wired, require both inventory_item_id and digest_id.
 	var inventoryItemID int64
+	var artifactDigestID int64
 	if h.inventory != nil {
 		idStr := r.FormValue("inventory_item_id")
 		id, err := strconv.ParseInt(idStr, 10, 64)
@@ -378,9 +413,6 @@ func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Team isolation: assessors may only create assessments for their own team's inventory.
-		// Readers cannot reach this handler because the route group requires Administrator or
-		// Assessor role (see RegisterRoutes). Only the Assessor case needs an explicit team
-		// check; Administrators are unrestricted.
 		session, _ := security.SessionFromContext(r.Context())
 		if session.EffectiveRoleSlug() == string(rbac.RoleAssessor) {
 			if session.TeamID == nil || *session.TeamID != item.TeamID {
@@ -388,24 +420,30 @@ func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+
+		digestIDStr := r.FormValue("digest_id")
+		digestID, digestIDErr := strconv.ParseInt(digestIDStr, 10, 64)
+		if digestIDErr != nil || digestID <= 0 {
+			http.Redirect(w, r, fmt.Sprintf("/inventory/%d", id), http.StatusFound)
+			return
+		}
+		digest, err := h.inventory.inventorySvc.GetDigestByID(r.Context(), digestID)
+		if err != nil || digest == nil || digest.InventoryItemID != id {
+			http.Redirect(w, r, fmt.Sprintf("/inventory/%d", id), http.StatusFound)
+			return
+		}
+
 		inventoryItemID = id
+		artifactDigestID = digestID
 		artefactName := item.Name
 		if artefactName == "" {
 			artefactName = r.FormValue("artefact_name")
 		}
-		resolvedReference := composeReference(item.Registry, item.PackageName, item.Reference)
-		digest := r.FormValue("artefact_digest")
-		if metadata, err := h.inventory.inventorySvc.GetArtifactMetadata(r.Context(), id); err == nil && metadata != nil {
-			if metadata.Digest != "" {
-				digest = metadata.Digest
-			}
-			resolvedReference = firstNonEmpty(metadata.ResolvedReference, resolvedReference)
-		}
 		artefact := domain.ArtefactInfo{
 			Name:      artefactName,
 			Type:      r.FormValue("artefact_type"),
-			Digest:    digest,
-			Reference: resolvedReference,
+			Digest:    digest.Digest,
+			Reference: fmt.Sprintf("%s/%s@%s", item.Registry, item.PackageName, digest.Digest),
 			Registry:  item.Registry,
 		}
 		reviewDate := parseDate(r.FormValue("review_date"))
@@ -415,6 +453,7 @@ func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		state.InventoryItemID = inventoryItemID
+		state.ArtifactDigestID = artifactDigestID
 		h.svc.UpdateState(state)
 		http.Redirect(w, r, fmt.Sprintf("/wizard/%s/step/2", state.ID), http.StatusFound)
 		return
@@ -434,6 +473,7 @@ func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	state.InventoryItemID = inventoryItemID
+	state.ArtifactDigestID = artifactDigestID
 	h.svc.UpdateState(state)
 	http.Redirect(w, r, fmt.Sprintf("/wizard/%s/step/2", state.ID), http.StatusFound)
 }

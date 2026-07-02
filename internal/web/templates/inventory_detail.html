@@ -71,10 +71,6 @@
           <dt class="font-medium text-slate-900">Repository</dt>
           <dd class="text-slate-600 mt-0.5 font-mono">{{.item.PackageName}}</dd>
         </div>
-        <div>
-          <dt class="font-medium text-slate-900">Reference</dt>
-          <dd class="text-slate-600 mt-0.5 font-mono">{{.item.Reference}}</dd>
-        </div>
         <div class="sm:col-span-2">
           <dt class="font-medium text-slate-900">Package URL</dt>
           <dd class="text-slate-600 mt-0.5">
@@ -104,145 +100,126 @@
       </dl>
     </section>
 
-    {{/* ── Start Assessment ──────────────────────────────────────────────── */}}
-    {{if and .item.Active (or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor"))}}
-    <section class="bg-white border rounded-lg p-6 space-y-3">
-      <h2 class="text-lg font-semibold">Assessment</h2>
-      {{if and .artifactMetadata .artifactMetadata.Digest}}
-        <p class="text-sm text-slate-600">
-          Start a suitability assessment for this inventory item using its discovered digest and evidence.
-        </p>
-        <a href="/wizard/new?inventory_item_id={{.item.ID}}"
-           class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-          Start Assessment →
-        </a>
-      {{else}}
-        <p class="text-sm text-slate-600">
-          Assessment start is blocked until discovery resolves artifact metadata for this inventory item.
-        </p>
-      {{end}}
-    </section>
+    {{/* ── Discovery Refresh ────────────────────────────────────────────── */}}
+    {{if .canEdit}}
+    <div class="flex justify-end">
+      <form method="post" action="/inventory/{{.item.ID}}/discovery/refresh">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+        <button class="border border-blue-300 text-blue-700 px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-50">
+          Refresh Discovery
+        </button>
+      </form>
+    </div>
     {{end}}
 
+    {{/* ── Tags ─────────────────────────────────────────────────────────── */}}
     <section class="bg-white border rounded-lg p-6 space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
-          <h2 class="text-base font-semibold text-slate-900">Artifact Metadata</h2>
-          <p class="text-sm text-slate-600">Latest OCI discovery snapshot for this inventory item.</p>
-        </div>
-        {{if .canEdit}}
-        <form method="post" action="/inventory/{{.item.ID}}/discovery/refresh">
-          <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
-          <button class="border border-blue-300 text-blue-700 px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-50">
-            Refresh Metadata
-          </button>
-        </form>
-        {{end}}
-      </div>
-      <dl class="grid gap-4 sm:grid-cols-2 text-sm">
-        <div>
-          <dt class="font-medium text-slate-900">Digest</dt>
-          <dd class="text-slate-600 mt-0.5 font-mono break-all">{{if and .artifactMetadata .artifactMetadata.Digest}}{{.artifactMetadata.Digest}}{{else}}Not available{{end}}</dd>
-        </div>
-        <div>
-          <dt class="font-medium text-slate-900">Registry</dt>
-          <dd class="text-slate-600 mt-0.5 font-mono">{{if and .artifactMetadata .artifactMetadata.Registry}}{{.artifactMetadata.Registry}}{{else}}{{.item.Registry}}{{end}}</dd>
-        </div>
-        <div>
-          <dt class="font-medium text-slate-900">Repository</dt>
-          <dd class="text-slate-600 mt-0.5 font-mono">{{if and .artifactMetadata .artifactMetadata.Repository}}{{.artifactMetadata.Repository}}{{else}}{{.item.PackageName}}{{end}}</dd>
-        </div>
-        <div>
-          <dt class="font-medium text-slate-900">Resolved Reference</dt>
-          <dd class="text-slate-600 mt-0.5 font-mono break-all">{{if and .artifactMetadata .artifactMetadata.ResolvedReference}}{{.artifactMetadata.ResolvedReference}}{{else}}Not available{{end}}</dd>
-        </div>
-        <div>
-          <dt class="font-medium text-slate-900">Discovery Status</dt>
-          <dd class="mt-0.5">
-            {{if .artifactMetadata}}
-              {{if eq .artifactMetadata.DiscoveryStatus "success"}}<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Success</span>{{end}}
-              {{if eq .artifactMetadata.DiscoveryStatus "warning"}}<span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Warning</span>{{end}}
-              {{if eq .artifactMetadata.DiscoveryStatus "failed"}}<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Failed</span>{{end}}
-              {{if eq .artifactMetadata.DiscoveryStatus "pending"}}<span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">Pending</span>{{end}}
-            {{else}}
-              <span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">Pending</span>
+      <h2 class="text-base font-semibold text-slate-900">Tags ({{len .tags}} discovered)</h2>
+      {{if .tags}}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="border-b text-left text-slate-500 text-xs uppercase tracking-wide">
+              <th class="py-2 pr-4">Tag</th>
+              <th class="py-2 pr-4">Digest</th>
+              <th class="py-2 pr-4">Last Seen</th>
+              {{if and $.item.Active (or (eq $.session.EffectiveRoleSlug "administrator") (eq $.session.EffectiveRoleSlug "assessor"))}}
+              <th class="py-2">Action</th>
+              {{end}}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {{range .tags}}
+            <tr>
+              <td class="py-2 pr-4 font-mono">{{.Tag}}</td>
+              <td class="py-2 pr-4 font-mono text-xs text-slate-600">
+                {{if .ArtifactDigestID}}{{shortDigest .Digest}}{{else}}—{{end}}
+              </td>
+              <td class="py-2 pr-4 text-slate-600">{{formatTime .LastSeenAt}}</td>
+              {{if and $.item.Active (or (eq $.session.EffectiveRoleSlug "administrator") (eq $.session.EffectiveRoleSlug "assessor"))}}
+              <td class="py-2">
+                {{if .ArtifactDigestID}}
+                <a href="/wizard/new?inventory_item_id={{$.item.ID}}&digest_id={{.ArtifactDigestID}}"
+                   class="inline-block bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700">
+                  Assess
+                </a>
+                {{end}}
+              </td>
+              {{end}}
+            </tr>
             {{end}}
-          </dd>
-        </div>
-        <div>
-          <dt class="font-medium text-slate-900">Last Discovery</dt>
-          <dd class="text-slate-600 mt-0.5">{{if .artifactMetadata}}{{formatTime .artifactMetadata.LastDiscoveredAt}}{{else}}Not available{{end}}</dd>
-        </div>
-        <div>
-          <dt class="font-medium text-slate-900">Last Refresh</dt>
-          <dd class="text-slate-600 mt-0.5">{{if .artifactMetadata}}{{formatTime .artifactMetadata.LastRefreshAt}}{{else}}Not available{{end}}</dd>
-        </div>
-        <div>
-          <dt class="font-medium text-slate-900">Media Type</dt>
-          <dd class="text-slate-600 mt-0.5 font-mono break-all">{{if and .artifactMetadata .artifactMetadata.MediaType}}{{.artifactMetadata.MediaType}}{{else}}Not available{{end}}</dd>
-        </div>
-      </dl>
-      {{if and .artifactMetadata .artifactMetadata.DiscoveryError}}
-      <div class="bg-slate-50 border rounded p-3 text-sm text-slate-700 whitespace-pre-line">{{.artifactMetadata.DiscoveryError}}</div>
+          </tbody>
+        </table>
+      </div>
+      {{else}}
+      <p class="text-sm text-slate-500">No tags discovered yet. Use <strong>Refresh Discovery</strong> to scan the repository.</p>
       {{end}}
     </section>
 
-    <section class="bg-white border rounded-lg p-6 space-y-6">
-      <h2 class="text-base font-semibold text-slate-900">Evidence</h2>
-      <div class="grid gap-4 md:grid-cols-2">
-        <div class="space-y-2">
-          <h3 class="font-medium text-slate-900">Signatures</h3>
-          {{if .signatures}}
-            {{range .signatures}}
-            <div class="border rounded p-3 text-sm space-y-1">
-              <p class="font-medium text-slate-900">{{.Name}}</p>
-              <p class="font-mono text-xs text-slate-600 break-all">{{.Digest}}</p>
-            </div>
+    {{/* ── Digests ──────────────────────────────────────────────────────── */}}
+    <section class="bg-white border rounded-lg p-6 space-y-4">
+      <h2 class="text-base font-semibold text-slate-900">Digests ({{len .digests}} unique)</h2>
+      {{if .digests}}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="border-b text-left text-slate-500 text-xs uppercase tracking-wide">
+              <th class="py-2 pr-4">Digest</th>
+              <th class="py-2 pr-4">Tags</th>
+              <th class="py-2 pr-4">Signatures</th>
+              <th class="py-2 pr-4">SBOMs</th>
+              <th class="py-2 pr-4">Status</th>
+              {{if and $.item.Active (or (eq $.session.EffectiveRoleSlug "administrator") (eq $.session.EffectiveRoleSlug "assessor"))}}
+              <th class="py-2">Action</th>
+              {{end}}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {{range .digests}}
+            <tr>
+              <td class="py-2 pr-4">
+                <a href="/inventory/{{$.item.ID}}/digest/{{.ID}}"
+                   class="font-mono text-xs text-blue-600 hover:underline">
+                  {{shortDigest .Digest}}
+                </a>
+              </td>
+              <td class="py-2 pr-4 text-slate-600">
+                {{range .Tags}}
+                <span class="inline-block text-xs bg-slate-100 rounded px-1.5 py-0.5 mr-1">{{.}}</span>
+                {{end}}
+              </td>
+              <td class="py-2 pr-4 text-slate-600">
+                {{$sigs := 0}}
+                {{range .Evidence}}{{if eq .Type "signature"}}{{$sigs = add $sigs 1}}{{end}}{{end}}
+                {{if gt $sigs 0}}<span class="text-green-700">✓ {{$sigs}}</span>{{else}}<span class="text-slate-400">✗ 0</span>{{end}}
+              </td>
+              <td class="py-2 pr-4 text-slate-600">
+                {{$sboms := 0}}
+                {{range .Evidence}}{{if eq .Type "sbom"}}{{$sboms = add $sboms 1}}{{end}}{{end}}
+                {{if gt $sboms 0}}<span class="text-green-700">✓ {{$sboms}}</span>{{else}}<span class="text-slate-400">✗ 0</span>{{end}}
+              </td>
+              <td class="py-2 pr-4">
+                {{if eq .DiscoveryStatus "success"}}<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">success</span>{{end}}
+                {{if eq .DiscoveryStatus "warning"}}<span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">warning</span>{{end}}
+                {{if eq .DiscoveryStatus "failed"}}<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">failed</span>{{end}}
+                {{if eq .DiscoveryStatus "pending"}}<span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">pending</span>{{end}}
+              </td>
+              {{if and $.item.Active (or (eq $.session.EffectiveRoleSlug "administrator") (eq $.session.EffectiveRoleSlug "assessor"))}}
+              <td class="py-2">
+                <a href="/wizard/new?inventory_item_id={{$.item.ID}}&digest_id={{.ID}}"
+                   class="inline-block bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700">
+                  Assess
+                </a>
+              </td>
+              {{end}}
+            </tr>
             {{end}}
-          {{else}}
-            <p class="text-sm text-slate-500">No signatures discovered.</p>
-          {{end}}
-        </div>
-        <div class="space-y-2">
-          <h3 class="font-medium text-slate-900">SBOMs</h3>
-          {{if .sboms}}
-            {{range .sboms}}
-            <div class="border rounded p-3 text-sm space-y-1">
-              <p class="font-medium text-slate-900">{{.Name}}</p>
-              <p class="font-mono text-xs text-slate-600 break-all">{{.Digest}}</p>
-            </div>
-            {{end}}
-          {{else}}
-            <p class="text-sm text-slate-500">No SBOMs discovered.</p>
-          {{end}}
-        </div>
-        <div class="space-y-2">
-          <h3 class="font-medium text-slate-900">Provenance</h3>
-          {{if .provenance}}
-            {{range .provenance}}
-            <div class="border rounded p-3 text-sm space-y-1">
-              <p class="font-medium text-slate-900">{{.Name}}</p>
-              <p class="font-mono text-xs text-slate-600 break-all">{{.Digest}}</p>
-            </div>
-            {{end}}
-          {{else}}
-            <p class="text-sm text-slate-500">No provenance discovered.</p>
-          {{end}}
-        </div>
-        <div class="space-y-2">
-          <h3 class="font-medium text-slate-900">Attestations</h3>
-          {{if .attestations}}
-            {{range .attestations}}
-            <div class="border rounded p-3 text-sm space-y-1">
-              <p class="font-medium text-slate-900">{{.Name}}</p>
-              <p class="font-mono text-xs text-slate-600 break-all">{{.Digest}}</p>
-            </div>
-            {{end}}
-          {{else}}
-            <p class="text-sm text-slate-500">No attestations discovered.</p>
-          {{end}}
-        </div>
+          </tbody>
+        </table>
       </div>
+      {{else}}
+      <p class="text-sm text-slate-500">No digests discovered yet. Use <strong>Refresh Discovery</strong> to enumerate all tags in this repository.</p>
+      {{end}}
     </section>
 
   </main>

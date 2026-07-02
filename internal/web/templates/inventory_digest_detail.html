@@ -1,0 +1,133 @@
+{{define "inventory_digest_detail.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Digest {{shortDigest .digest.Digest}} – {{.item.Name}} – Inventory – CDSCAM Assurance Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
+  <main class="max-w-4xl mx-auto p-8 space-y-6">
+
+    {{/* ── Breadcrumb ───────────────────────────────────────────────────── */}}
+    <nav class="text-sm text-slate-500">
+      <a href="/inventory" class="hover:text-blue-600">Inventory</a>
+      <span class="mx-2">›</span>
+      <a href="/inventory/{{.item.ID}}" class="hover:text-blue-600">{{.item.Name}}</a>
+      <span class="mx-2">›</span>
+      <span class="text-slate-900 font-mono">{{shortDigest .digest.Digest}}</span>
+    </nav>
+
+    {{/* ── Digest Header ────────────────────────────────────────────────── */}}
+    <section class="bg-white border rounded-lg p-6 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 class="text-xl font-semibold font-mono break-all">{{.digest.Digest}}</h1>
+          <p class="text-sm text-slate-600 mt-1">{{.item.Registry}}/{{.item.PackageName}}</p>
+        </div>
+        {{if and $.item.Active (or (eq $.session.EffectiveRoleSlug "administrator") (eq $.session.EffectiveRoleSlug "assessor"))}}
+        <a href="/wizard/new?inventory_item_id={{.item.ID}}&digest_id={{.digest.ID}}"
+           class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shrink-0">
+          Start Assessment →
+        </a>
+        {{end}}
+      </div>
+
+      <dl class="grid gap-4 sm:grid-cols-2 text-sm">
+        <div>
+          <dt class="font-medium text-slate-900">Discovery Status</dt>
+          <dd class="mt-0.5">
+            {{if eq .digest.DiscoveryStatus "success"}}<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Success</span>{{end}}
+            {{if eq .digest.DiscoveryStatus "warning"}}<span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Warning</span>{{end}}
+            {{if eq .digest.DiscoveryStatus "failed"}}<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Failed</span>{{end}}
+            {{if eq .digest.DiscoveryStatus "pending"}}<span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">Pending</span>{{end}}
+          </dd>
+        </div>
+        <div>
+          <dt class="font-medium text-slate-900">Media Type</dt>
+          <dd class="text-slate-600 mt-0.5 font-mono text-xs break-all">{{if .digest.MediaType}}{{.digest.MediaType}}{{else}}—{{end}}</dd>
+        </div>
+        <div>
+          <dt class="font-medium text-slate-900">Last Discovered</dt>
+          <dd class="text-slate-600 mt-0.5">{{formatTime .digest.LastDiscoveredAt}}</dd>
+        </div>
+        <div>
+          <dt class="font-medium text-slate-900">First Seen</dt>
+          <dd class="text-slate-600 mt-0.5">{{formatTime .digest.CreatedAt}}</dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="font-medium text-slate-900">Current Tags</dt>
+          <dd class="mt-0.5">
+            {{if .tags}}
+              {{range .tags}}<span class="inline-block text-xs bg-slate-100 rounded px-2 py-0.5 mr-1 mb-1 font-mono">{{.Tag}}</span>{{end}}
+            {{else}}
+              <span class="text-slate-500 text-sm">No tags currently point to this digest.</span>
+            {{end}}
+          </dd>
+        </div>
+      </dl>
+
+      {{if .digest.DiscoveryError}}
+      <div class="bg-slate-50 border rounded p-3 text-sm text-slate-700 whitespace-pre-line">{{.digest.DiscoveryError}}</div>
+      {{end}}
+    </section>
+
+    {{/* ── Evidence ─────────────────────────────────────────────────────── */}}
+    <section class="bg-white border rounded-lg p-6 space-y-6">
+      <h2 class="text-base font-semibold text-slate-900">Evidence ({{len .digest.Evidence}} items)</h2>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div class="space-y-2">
+          <h3 class="font-medium text-slate-900">Signatures</h3>
+          {{$found := false}}
+          {{range .digest.Evidence}}{{if eq .Type "signature"}}{{$found = true}}
+          <div class="border rounded p-3 text-sm space-y-1">
+            <p class="font-medium text-slate-900">{{.Name}}</p>
+            <p class="font-mono text-xs text-slate-600 break-all">{{.Digest}}</p>
+            {{if .MediaType}}<p class="text-xs text-slate-500">{{.MediaType}}</p>{{end}}
+          </div>
+          {{end}}{{end}}
+          {{if not $found}}<p class="text-sm text-slate-500">None discovered.</p>{{end}}
+        </div>
+        <div class="space-y-2">
+          <h3 class="font-medium text-slate-900">SBOMs</h3>
+          {{$found := false}}
+          {{range .digest.Evidence}}{{if eq .Type "sbom"}}{{$found = true}}
+          <div class="border rounded p-3 text-sm space-y-1">
+            <p class="font-medium text-slate-900">{{.Name}}</p>
+            <p class="font-mono text-xs text-slate-600 break-all">{{.Digest}}</p>
+            {{if .MediaType}}<p class="text-xs text-slate-500">{{.MediaType}}</p>{{end}}
+          </div>
+          {{end}}{{end}}
+          {{if not $found}}<p class="text-sm text-slate-500">None discovered.</p>{{end}}
+        </div>
+        <div class="space-y-2">
+          <h3 class="font-medium text-slate-900">Provenance</h3>
+          {{$found := false}}
+          {{range .digest.Evidence}}{{if eq .Type "provenance"}}{{$found = true}}
+          <div class="border rounded p-3 text-sm space-y-1">
+            <p class="font-medium text-slate-900">{{.Name}}</p>
+            <p class="font-mono text-xs text-slate-600 break-all">{{.Digest}}</p>
+            {{if .MediaType}}<p class="text-xs text-slate-500">{{.MediaType}}</p>{{end}}
+          </div>
+          {{end}}{{end}}
+          {{if not $found}}<p class="text-sm text-slate-500">None discovered.</p>{{end}}
+        </div>
+        <div class="space-y-2">
+          <h3 class="font-medium text-slate-900">Attestations</h3>
+          {{$found := false}}
+          {{range .digest.Evidence}}{{if eq .Type "attestation"}}{{$found = true}}
+          <div class="border rounded p-3 text-sm space-y-1">
+            <p class="font-medium text-slate-900">{{.Name}}</p>
+            <p class="font-mono text-xs text-slate-600 break-all">{{.Digest}}</p>
+            {{if .MediaType}}<p class="text-xs text-slate-500">{{.MediaType}}</p>{{end}}
+          </div>
+          {{end}}{{end}}
+          {{if not $found}}<p class="text-sm text-slate-500">None discovered.</p>{{end}}
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>{{end}}

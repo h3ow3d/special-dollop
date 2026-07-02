@@ -167,6 +167,7 @@ type Participant struct {
 type AssessmentState struct {
 	ID               string
 	InventoryItemID  int64  // links this assessment to a registered inventory item
+	ArtifactDigestID int64  // links to the immutable digest being assessed
 	AssessmentDate   time.Time
 	ReviewDate       time.Time
 	User             User

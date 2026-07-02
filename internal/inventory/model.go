@@ -4,16 +4,15 @@ package inventory
 
 import "time"
 
-// InventoryItem represents a GitHub Container Registry package registered
-// in the platform inventory. Inventory items belong to a Team and serve as
-// the authoritative source of artefacts that may be assessed.
+// InventoryItem represents an OCI repository registered in the platform
+// inventory. Inventory items belong to a Team and serve as the authoritative
+// source of artefacts that may be assessed.
 type InventoryItem struct {
 	ID            int64
 	Name          string
 	Description   string
 	TeamID        int64
 	Registry      string
-	Reference     string
 	PackageURL    string
 	PackageName   string
 	RepositoryURL string
