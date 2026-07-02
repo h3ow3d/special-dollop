@@ -1,0 +1,132 @@
+{{define "dashboard.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Dashboard – CDSCAM</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
+  <main class="max-w-6xl mx-auto p-8 space-y-8">
+
+    {{/* ── Identity banner ──────────────────────────────────────────────── */}}
+    <div class="bg-white border rounded-lg p-6">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div>
+          <h1 class="text-2xl font-semibold">
+            Welcome back{{if .user}}, @{{.user.GitHubUsername}}{{end}}
+          </h1>
+          <p class="text-slate-500 text-sm mt-1">
+            {{if .session.TeamName}}Team: {{.session.TeamName}}{{else}}No team assigned{{end}}
+            &nbsp;·&nbsp;
+            Role: <span class="font-medium">{{roleLabel .session.EffectiveRoleSlug}}</span>
+          </p>
+        </div>
+        <p class="text-sm text-slate-500 max-w-md">
+          CDSCAM is the platform for OCI artefact suitability assessments, user and team management, and audit logging.
+        </p>
+      </div>
+    </div>
+
+    {{/* ── Action cards ─────────────────────────────────────────────────── */}}
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+
+      {{/* Start Assessment — Administrator + Assessor */}}
+      {{if or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor")}}
+      <div class="bg-white border rounded-lg p-6 flex flex-col gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">Start Assessment</h2>
+          <p class="text-sm text-slate-600 mt-1">
+            Create a new OCI artefact suitability assessment, capture evidence, and generate a signed attestation.
+          </p>
+        </div>
+        <div class="mt-auto">
+          <a href="/wizard/new" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+            Start →
+          </a>
+        </div>
+      </div>
+      {{end}}
+
+      {{/* User Administration — Administrator only */}}
+      {{if eq .session.EffectiveRoleSlug "administrator"}}
+      <div class="bg-white border rounded-lg p-6 flex flex-col gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">User Administration</h2>
+          <p class="text-sm text-slate-600 mt-1">
+            Manage platform users. Assign or update roles and team memberships, and activate or deactivate accounts.
+          </p>
+        </div>
+        <div class="mt-auto">
+          <a href="/admin/users" class="inline-block bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900">
+            Open Users →
+          </a>
+        </div>
+      </div>
+
+      <div class="bg-white border rounded-lg p-6 flex flex-col gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">Team Administration</h2>
+          <p class="text-sm text-slate-600 mt-1">
+            Create and manage teams. Teams group assessors and readers for organisational purposes.
+          </p>
+        </div>
+        <div class="mt-auto">
+          <a href="/admin/teams" class="inline-block bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900">
+            Open Teams →
+          </a>
+        </div>
+      </div>
+
+      <div class="bg-white border rounded-lg p-6 flex flex-col gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">Roles</h2>
+          <p class="text-sm text-slate-600 mt-1">
+            View the seeded platform roles and their associated capabilities.
+          </p>
+        </div>
+        <div class="mt-auto">
+          <a href="/admin/roles" class="inline-block bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900">
+            Open Roles →
+          </a>
+        </div>
+      </div>
+      {{end}}
+
+      {{/* Your Access — all roles */}}
+      <div class="bg-white border rounded-lg p-6 flex flex-col gap-3">
+        <h2 class="text-lg font-semibold">Your Access</h2>
+        <dl class="text-sm space-y-1">
+          {{if .user}}
+          <div class="flex gap-2">
+            <dt class="font-medium w-24 shrink-0">User</dt>
+            <dd class="text-slate-600">@{{.user.GitHubUsername}}</dd>
+          </div>
+          {{end}}
+          <div class="flex gap-2">
+            <dt class="font-medium w-24 shrink-0">Team</dt>
+            <dd class="text-slate-600">{{if .session.TeamName}}{{.session.TeamName}}{{else}}Not assigned{{end}}</dd>
+          </div>
+          <div class="flex gap-2">
+            <dt class="font-medium w-24 shrink-0">Role</dt>
+            <dd class="text-slate-600">{{roleLabel .session.EffectiveRoleSlug}}</dd>
+          </div>
+        </dl>
+        <p class="text-xs text-slate-500 mt-2">
+          {{if eq .session.EffectiveRoleSlug "administrator"}}
+            Can create and manage assessments, administer users, teams, and roles.
+          {{else if eq .session.EffectiveRoleSlug "assessor"}}
+            Can create and edit assessments. Cannot access administration pages.
+          {{else if eq .session.EffectiveRoleSlug "reader"}}
+            Read-only access. Cannot create assessments or access administration pages.
+          {{else}}
+            No role assigned. Contact an administrator to request access.
+          {{end}}
+        </p>
+      </div>
+
+    </div>
+  </main>
+</body>
+</html>{{end}}

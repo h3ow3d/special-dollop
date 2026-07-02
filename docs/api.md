@@ -4,19 +4,25 @@
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/` | Landing / login page |
+| GET | `/` | Landing / login page (redirects to `/dashboard` if already authenticated) |
 | GET | `/health/live` | Liveness probe |
 | GET | `/health/ready` | Readiness probe |
 | GET | `/auth/login` | Redirects to GitHub OAuth authorisation |
-| GET | `/auth/callback` | GitHub OAuth callback — sets signed session cookie and redirects to `/wizard` |
+| GET | `/auth/callback` | GitHub OAuth callback — sets signed session cookie and redirects to `/dashboard` |
 
 ## Authenticated (requires valid session cookie and an assigned role)
 
-### Wizard
+### Dashboard
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/wizard` | Dashboard / assessment start page | Administrator, Assessor, Reader |
+| GET | `/dashboard` | Authenticated landing page — role-aware cards and identity summary | Administrator, Assessor, Reader |
+| GET | `/wizard` | Redirects to `/dashboard` (kept for backwards compatibility) | Administrator, Assessor, Reader |
+
+### Assessments (Wizard)
+
+| Method | Path | Description | Roles |
+|---|---|---|---|
 | GET | `/wizard/new` | Artefact Information form (step 1) | Administrator, Assessor, Reader |
 | POST | `/wizard/new` | Submit step 1, create in-memory AssessmentState, redirect to step 2 | Administrator, Assessor |
 | GET | `/wizard/{id}/step/{n}` | Render wizard step n (2–10) | Administrator, Assessor, Reader |

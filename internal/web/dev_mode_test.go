@@ -111,13 +111,13 @@ func TestDevModePanelVisibility(t *testing.T) {
 		UserID:          1,
 		RoleID:          1,
 		RoleSlug:        users.RoleSlugAdministrator,
-		LastVisitedPath: "/wizard",
+		LastVisitedPath: "/dashboard",
 		Active:          true,
 	}
 
 	t.Run("visible when enabled", func(t *testing.T) {
 		h, _, _, _ := newDevModeHandler(t, true)
-		req := newSessionRequest(t, http.MethodGet, "/wizard", session, "")
+		req := newSessionRequest(t, http.MethodGet, "/dashboard", session, "")
 		rr := httptest.NewRecorder()
 		h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(rr, req)
 		if rr.Code != http.StatusOK {
@@ -134,7 +134,7 @@ func TestDevModePanelVisibility(t *testing.T) {
 
 	t.Run("hidden when disabled", func(t *testing.T) {
 		h, _, _, _ := newDevModeHandler(t, false)
-		req := newSessionRequest(t, http.MethodGet, "/wizard", session, "")
+		req := newSessionRequest(t, http.MethodGet, "/dashboard", session, "")
 		rr := httptest.NewRecorder()
 		h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(rr, req)
 		if rr.Code != http.StatusOK {
