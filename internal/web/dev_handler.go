@@ -71,7 +71,7 @@ func (h *Handler) impersonateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fromUserID := session.ImpersonatedUserID
+	previousImpersonatedUserID := session.ImpersonatedUserID
 	rawID := strings.TrimSpace(r.FormValue("user_id"))
 
 	if rawID == "" || rawID == "0" {
@@ -129,7 +129,7 @@ func (h *Handler) impersonateUser(w http.ResponseWriter, r *http.Request) {
 
 	actorID := session.UserID
 	h.admin.auditSvc.Record(r.Context(), &actorID, audit.ActionUserImpersonation, map[string]any{
-		"from_user_id": fromUserID,
+		"from_user_id": previousImpersonatedUserID,
 		"to_user_id":   session.ImpersonatedUserID,
 	}, r.RemoteAddr)
 

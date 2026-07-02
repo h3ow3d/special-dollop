@@ -79,7 +79,7 @@
         <select name="user_id" class="px-3 py-1 rounded border bg-white text-sm">
           <option value="0">— select user —</option>
           {{range .devUsers}}
-          <option value="{{.ID}}"{{if eq .ID $.session.ImpersonatedUserID}} selected{{end}}>
+          <option value="{{.ID}}"{{if eq .ID $.session.ImpersonatedUserID}} selected="selected"{{end}}>
             {{if .DisplayName}}{{.DisplayName}}{{else}}@{{.GitHubUsername}}{{end}} ({{.ID}})
           </option>
           {{end}}
