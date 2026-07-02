@@ -57,7 +57,7 @@
       <div><dt class="font-medium inline">Current Team:</dt> <dd class="inline">{{if .session.TeamName}}{{.session.TeamName}}{{else}}none{{end}}</dd></div>
       <div><dt class="font-medium inline">Current Role:</dt> <dd class="inline">{{roleLabel .session.EffectiveRoleSlug}}</dd></div>
       <div><dt class="font-medium inline">Stored Role:</dt> <dd class="inline">{{roleLabel .session.RoleSlug}}</dd></div>
-      <div><dt class="font-medium inline">Authentication Status:</dt> <dd class="inline">Authenticated</dd></div>
+      <div><dt class="font-medium inline">Authentication Source:</dt> <dd class="inline">{{if eq .session.AuthSource "dev"}}Development Login{{else}}GitHub OAuth{{end}}</dd></div>
     </dl>
     <div class="space-y-2">
       <p class="font-medium">Assume Role:</p>

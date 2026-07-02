@@ -9,6 +9,8 @@ type Action string
 const (
 	ActionLogin                  Action = "user.login"
 	ActionLogout                 Action = "user.logout"
+	ActionDevLogin               Action = "dev.login"
+	ActionDevLogout              Action = "dev.logout"
 	ActionRoleChanged            Action = "user.role_changed"
 	ActionRoleImpersonation      Action = "Role Impersonation"
 	ActionTeamChanged            Action = "user.team_changed"

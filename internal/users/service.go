@@ -60,6 +60,11 @@ func (s *Service) GetOrCreateWithRole(ctx context.Context, u *User, defaultRoleS
 	return u, true, nil
 }
 
+// GetByGitHubUserID retrieves a user by their GitHub user ID.
+func (s *Service) GetByGitHubUserID(ctx context.Context, githubUserID int64) (*User, error) {
+	return s.users.GetByGitHubUserID(ctx, githubUserID)
+}
+
 // GetByID retrieves a user by their platform ID.
 func (s *Service) GetByID(ctx context.Context, id int64) (*User, error) {
 	return s.users.GetByID(ctx, id)

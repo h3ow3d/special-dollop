@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/h3ow3d/special-dollop/internal/app"
 	"github.com/h3ow3d/special-dollop/internal/audit"
 	"github.com/h3ow3d/special-dollop/internal/auth"
+	"github.com/h3ow3d/special-dollop/internal/bootstrap"
 	"github.com/h3ow3d/special-dollop/internal/database"
 	"github.com/h3ow3d/special-dollop/internal/infra/attestation"
 	"github.com/h3ow3d/special-dollop/internal/infra/oci"
@@ -62,7 +64,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("handler: %v", err)
 	}
-	h.WithDevelopmentMode(getenv("DEV_MODE", "false") == "true")
+	devMode := getenv("DEV_MODE", "false") == "true"
+	h.WithDevelopmentMode(devMode)
 
 	// PostgreSQL – required; provided by the Docker Compose stack.
 	dsn := getenv("DATABASE_URL", "")
@@ -98,6 +101,17 @@ func main() {
 	// Admin handler
 	adminHandler := web.NewAdminHandler(h, userSvc, teamSvc, auditSvc)
 	h.WithAdminHandler(adminHandler)
+
+	// Bootstrap development users and teams when DEV_MODE=true.
+	if devMode {
+		seeder := bootstrap.NewSeeder(teamSvc, userSvc)
+		if err := seeder.Seed(context.Background()); err != nil {
+			log.Fatalf("bootstrap: %v", err)
+		}
+		log.Println("bootstrap: development teams and users seeded")
+		loginSvc := bootstrap.NewLoginService(userSvc, teamRepo, auditSvc)
+		h.WithDevLoginService(loginSvc)
+	}
 
 	csrfKey := []byte(padTo32(getenv("CSRF_AUTH_KEY", "replace-me-with-32-byte-csrf-secret")))
 	addr := getenv("HTTP_ADDR", ":8080")
