@@ -553,6 +553,55 @@ func authenticatedFormPostForTeam(t *testing.T, path, role string, teamID int64,
 
 // ── Inventory list isolation ──────────────────────────────────────────────────
 
+func TestTeamIsolation_DashboardInventoryCard(t *testing.T) {
+	h, _, _ := newIsolationTestHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	t.Run("assessor sees only own team inventory summary", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, "/dashboard", users.RoleSlugAssessor, applicationsTeamID, "Applications")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+		}
+		body := rr.Body.String()
+		if !strings.Contains(body, "My Team Inventory") {
+			t.Fatal("assessor should see My Team Inventory heading")
+		}
+		if !strings.Contains(body, ">Applications<") {
+			t.Fatal("assessor should see own team name")
+		}
+		if !strings.Contains(body, "Registered Packages:") {
+			t.Fatal("assessor should see registered packages summary")
+		}
+		if strings.Contains(body, ">Platform<") {
+			t.Fatal("assessor should not see other team names on dashboard inventory card")
+		}
+		if strings.Contains(body, "Inventory By Team") {
+			t.Fatal("assessor should not see administrator inventory heading")
+		}
+	})
+
+	t.Run("administrator sees cross-team inventory summary", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, "/dashboard", users.RoleSlugAdministrator, platformTeamID, "Platform")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+		}
+		body := rr.Body.String()
+		if !strings.Contains(body, "Inventory By Team") {
+			t.Fatal("administrator should see Inventory By Team heading")
+		}
+		if !strings.Contains(body, ">Platform<") {
+			t.Fatal("administrator should see Platform team summary")
+		}
+		if !strings.Contains(body, ">Applications<") {
+			t.Fatal("administrator should see Applications team summary")
+		}
+	})
+}
+
 func TestTeamIsolation_InventoryList(t *testing.T) {
 	h, _, _ := newIsolationTestHandler(t)
 	router := h.Router([]byte("12345678901234567890123456789012"))
