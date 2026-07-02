@@ -196,7 +196,9 @@ func (r *testInventoryRepo) CountByTeam(_ context.Context) (map[int64]int, error
 // ── fake evidence repository ───────────────────────────────────────────────
 
 type testEvidenceRepo struct {
-	digests map[int64]*evidence.ArtifactDigest
+	digests        map[int64]*evidence.ArtifactDigest
+	listDigestsErr error
+	listTagsErr    error
 }
 
 func newTestEvidenceRepo(digs ...*evidence.ArtifactDigest) *testEvidenceRepo {
@@ -221,6 +223,9 @@ func (r *testEvidenceRepo) GetDigestByID(_ context.Context, id int64) (*evidence
 	return nil, nil
 }
 func (r *testEvidenceRepo) ListDigestsByItem(_ context.Context, inventoryItemID int64) ([]*evidence.ArtifactDigest, error) {
+	if r.listDigestsErr != nil {
+		return nil, r.listDigestsErr
+	}
 	var out []*evidence.ArtifactDigest
 	for _, d := range r.digests {
 		if d.InventoryItemID == inventoryItemID {
@@ -232,6 +237,9 @@ func (r *testEvidenceRepo) ListDigestsByItem(_ context.Context, inventoryItemID 
 }
 func (r *testEvidenceRepo) UpsertTag(_ context.Context, _ *evidence.RepositoryTag) error { return nil }
 func (r *testEvidenceRepo) ListTagsByItem(_ context.Context, _ int64) ([]*evidence.RepositoryTag, error) {
+	if r.listTagsErr != nil {
+		return nil, r.listTagsErr
+	}
 	return nil, nil
 }
 func (r *testEvidenceRepo) ReplaceEvidence(_ context.Context, _ int64, _ []*evidence.DigestEvidence) error {
@@ -845,6 +853,64 @@ func TestInventoryRefreshDiscoveryFailureRendersDetailPage(t *testing.T) {
 	}
 	if strings.HasPrefix(strings.TrimSpace(body), "refresh discovery:") {
 		t.Fatalf("expected rendered page instead of standalone error body, got body=%s", body)
+	}
+}
+
+func TestInventoryRefreshDiscoveryFailureStillRendersPageWhenDataReloadFails(t *testing.T) {
+	h, _ := newTestHandler(t)
+	teamID := int64(10)
+	packageName := "h3ow3d/customer-portal"
+	teamSvc := teams.NewService(&testAdminTeamRepo{
+		teams: []*teams.Team{
+			{ID: teamID, Name: "Platform", Active: true},
+		},
+	})
+	auditSvc := audit.NewService(&testAuditRepo{})
+	repo := &testInventoryRepo{
+		items: []*inventory.InventoryItem{
+			{
+				ID:          1,
+				Name:        "customer-portal",
+				Description: "Customer portal",
+				TeamID:      teamID,
+				Registry:    "ghcr.io",
+				PackageName: packageName,
+				Active:      true,
+				CreatedAt:   time.Now(),
+				UpdatedAt:   time.Now(),
+			},
+		},
+		nextID: 1,
+	}
+	evidenceSvc := evidence.NewService(&testEvidenceRepo{
+		listDigestsErr: context.DeadlineExceeded,
+	}, &failingDiscoverer{
+		err: errors.New("list tags for ghcr.io/" + packageName + ": context deadline exceeded"),
+	})
+	inventorySvc := inventory.NewService(repo, evidenceSvc)
+	h.WithInventoryHandler(NewInventoryHandler(h, inventorySvc, teamSvc, auditSvc))
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	req := authenticatedFormPostForTeam(t, "/inventory/1/discovery/refresh", users.RoleSlugAdministrator, 0, "", url.Values{})
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d body=%s", rr.Code, rr.Body.String())
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "Refresh Discovery") {
+		t.Fatalf("expected inventory detail page content, got body=%s", body)
+	}
+	if !strings.Contains(body, "refresh discovery: list tags for ghcr.io/"+packageName) {
+		t.Fatalf("expected discovery error message in page, got body=%s", body)
+	}
+	if !strings.Contains(body, "context deadline exceeded") {
+		t.Fatalf("expected discovery error message in page, got body=%s", body)
+	}
+	if strings.Contains(body, "failed to load artifact digests:") {
+		t.Fatalf("expected rendered detail page without standalone digest load error body, got body=%s", body)
 	}
 }
 
