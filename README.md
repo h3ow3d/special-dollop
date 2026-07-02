@@ -31,10 +31,10 @@ docker compose up --build
 ```
 
 If you upgraded from an earlier local setup, the stack now uses a new Postgres volume (`pgdata_v18`) to avoid incompatible old data layouts.
-If you do not need old local DB data, remove the previous volume with:
+If you do not need old local DB data, remove the previous volume (replace `<project-name>` with your Compose project name):
 
 ```bash
-docker volume rm special-dollop_pgdata
+docker volume rm <project-name>_pgdata
 ```
 
 Open `http://localhost:8080`, authenticate with GitHub, then run through the wizard.
