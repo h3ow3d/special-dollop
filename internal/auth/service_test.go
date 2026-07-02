@@ -108,11 +108,11 @@ func (r *fakeRoleRepo) List(_ context.Context) ([]*users.Role, error) {
 
 type fakeTeamRepo struct{}
 
-func (r *fakeTeamRepo) Create(_ context.Context, t *teams.Team) error        { return nil }
+func (r *fakeTeamRepo) Create(_ context.Context, t *teams.Team) error { return nil }
 func (r *fakeTeamRepo) GetByID(_ context.Context, id int64) (*teams.Team, error) {
 	return nil, teams.ErrNotFound
 }
-func (r *fakeTeamRepo) List(_ context.Context) ([]*teams.Team, error) { return nil, nil }
+func (r *fakeTeamRepo) List(_ context.Context) ([]*teams.Team, error)            { return nil, nil }
 func (r *fakeTeamRepo) SetActive(_ context.Context, id int64, active bool) error { return nil }
 
 type fakeAuditRepo struct {

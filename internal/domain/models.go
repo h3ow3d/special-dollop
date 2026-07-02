@@ -38,15 +38,15 @@ type User struct {
 // UserSession carries authenticated user identity and RBAC state through the
 // request context. It is stored in the encrypted session cookie.
 type UserSession struct {
-	GitHubUser User      // GitHub identity; also used for attestation metadata
-	UserID     int64     // platform database user ID (0 when DB is not configured)
-	RoleID     int64     // stored platform role ID; 0 when DB is not configured
-	RoleSlug   string    // stored platform role slug: "administrator" | "assessor" | "reader" | ""
+	GitHubUser           User   // GitHub identity; also used for attestation metadata
+	UserID               int64  // platform database user ID (0 when DB is not configured)
+	RoleID               int64  // stored platform role ID; 0 when DB is not configured
+	RoleSlug             string // stored platform role slug: "administrator" | "assessor" | "reader" | ""
 	ImpersonatedRoleSlug string
-	TeamID     *int64    // nil when no team is assigned
-	TeamName   string    // empty when no team is assigned
-	LoginAt    time.Time
-	Active     bool
+	TeamID               *int64 // nil when no team is assigned
+	TeamName             string // empty when no team is assigned
+	LoginAt              time.Time
+	Active               bool
 }
 
 // EffectiveRoleSlug returns the active role for request authorization. In

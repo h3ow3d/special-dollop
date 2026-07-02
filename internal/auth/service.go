@@ -17,9 +17,9 @@ import (
 // Service enriches a GitHub OAuth identity with the platform's user record and
 // RBAC state. It implements security.UserEnricher.
 type Service struct {
-	userSvc  *users.Service
-	teamRepo teams.Repository
-	audit    *audit.Service
+	userSvc         *users.Service
+	teamRepo        teams.Repository
+	audit           *audit.Service
 	bootstrapAdmins map[string]struct{}
 }
 
