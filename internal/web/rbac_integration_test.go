@@ -2,11 +2,15 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/securecookie"
 	"github.com/h3ow3d/special-dollop/internal/audit"
 	"github.com/h3ow3d/special-dollop/internal/domain"
@@ -422,6 +426,319 @@ func TestRBACIntegration_ReaderCannotStartAssessment(t *testing.T) {
 		router.ServeHTTP(rr, req)
 		if rr.Code != http.StatusForbidden {
 			t.Fatalf("expected 403 for reader on /wizard/new, got %d", rr.Code)
+		}
+	})
+}
+
+// ── Team isolation helpers ────────────────────────────────────────────────────
+
+const (
+	platformTeamID     = int64(10)
+	applicationsTeamID = int64(20)
+)
+
+// newIsolationTestHandler sets up a Handler with two teams (Platform=10,
+// Applications=20) and one inventory item per team already seeded.
+// It returns the handler and the platform item ID plus the applications item ID.
+func newIsolationTestHandler(t *testing.T) (h *Handler, platformItemID, appsItemID int64) {
+	t.Helper()
+	h, _ = newTestHandler(t)
+
+	teamRepo := &testAdminTeamRepo{
+		teams: []*teams.Team{
+			{ID: platformTeamID, Name: "Platform", Active: true},
+			{ID: applicationsTeamID, Name: "Applications", Active: true},
+		},
+	}
+	teamSvc := teams.NewService(teamRepo)
+
+	invRepo := &testInventoryRepo{
+		items: []*inventory.InventoryItem{
+			{ID: 1, Name: "platform-item", TeamID: platformTeamID, Registry: "ghcr.io", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: 2, Name: "apps-item", TeamID: applicationsTeamID, Registry: "ghcr.io", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		},
+		nextID: 2,
+	}
+	inventorySvc := inventory.NewService(invRepo)
+
+	pID := int64(platformTeamID)
+	userSvc := users.NewService(&testAdminUserRepo{
+		users: []*users.User{{
+			ID: 1, GitHubUserID: 101, GitHubUsername: "admin",
+			DisplayName: "Admin User", RoleID: 1, TeamID: &pID, Active: true,
+		}},
+	}, &testAdminRoleRepo{})
+
+	auditSvc := audit.NewService(&testAuditRepo{})
+	h.WithAdminHandler(NewAdminHandler(h, userSvc, teamSvc, auditSvc))
+	h.WithInventoryHandler(NewInventoryHandler(h, inventorySvc, teamSvc, auditSvc))
+
+	return h, 1, 2
+}
+
+// authenticatedRequestForTeam creates an authenticated GET/POST request whose
+// session carries the specified role and team. Pass teamID=0 to leave TeamID nil.
+func authenticatedRequestForTeam(t *testing.T, method, path, role string, teamID int64, teamName string) *http.Request {
+	t.Helper()
+	req := httptest.NewRequest(method, path, nil)
+	sc := securecookie.New([]byte(testHashKey), nil)
+	roleID := int64(3)
+	switch role {
+	case users.RoleSlugAdministrator:
+		roleID = 1
+	case users.RoleSlugAssessor:
+		roleID = 2
+	}
+	sess := domain.UserSession{
+		GitHubUser: domain.User{
+			GitHubUsername: role,
+			DisplayName:    role,
+			Email:          role + "@example.com",
+		},
+		UserID:   roleID,
+		RoleID:   roleID,
+		RoleSlug: role,
+		TeamName: teamName,
+		Active:   true,
+	}
+	if teamID > 0 {
+		sess.TeamID = &teamID
+	}
+	encoded, err := sc.Encode("clph_session", sess)
+	if err != nil {
+		t.Fatalf("encode session: %v", err)
+	}
+	req.AddCookie(&http.Cookie{Name: "clph_session", Value: encoded, Path: "/"})
+	return req
+}
+
+// authenticatedFormPostForTeam creates a form-encoded POST request with an
+// authenticated session for the specified role and team. CSRF is bypassed.
+func authenticatedFormPostForTeam(t *testing.T, path, role string, teamID int64, teamName string, form url.Values) *http.Request {
+	t.Helper()
+	body := strings.NewReader(form.Encode())
+	req := httptest.NewRequest(http.MethodPost, path, body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	sc := securecookie.New([]byte(testHashKey), nil)
+	roleID := int64(3)
+	switch role {
+	case users.RoleSlugAdministrator:
+		roleID = 1
+	case users.RoleSlugAssessor:
+		roleID = 2
+	}
+	sess := domain.UserSession{
+		GitHubUser: domain.User{
+			GitHubUsername: role,
+			DisplayName:    role,
+			Email:          role + "@example.com",
+		},
+		UserID:   roleID,
+		RoleID:   roleID,
+		RoleSlug: role,
+		TeamName: teamName,
+		Active:   true,
+	}
+	if teamID > 0 {
+		sess.TeamID = &teamID
+	}
+	encoded, err := sc.Encode("clph_session", sess)
+	if err != nil {
+		t.Fatalf("encode session: %v", err)
+	}
+	req.AddCookie(&http.Cookie{Name: "clph_session", Value: encoded, Path: "/"})
+	return csrf.UnsafeSkipCheck(req)
+}
+
+// ── Inventory list isolation ──────────────────────────────────────────────────
+
+func TestTeamIsolation_InventoryList(t *testing.T) {
+	h, _, _ := newIsolationTestHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	t.Run("reader sees only own team items", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, "/inventory", users.RoleSlugReader, applicationsTeamID, "Applications")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+		}
+		body := rr.Body.String()
+		if strings.Contains(body, "platform-item") {
+			t.Fatal("reader from Applications should not see Platform team inventory")
+		}
+		if !strings.Contains(body, "apps-item") {
+			t.Fatal("reader from Applications should see own team inventory")
+		}
+	})
+
+	t.Run("assessor sees only own team items", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, "/inventory", users.RoleSlugAssessor, applicationsTeamID, "Applications")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+		}
+		body := rr.Body.String()
+		if strings.Contains(body, "platform-item") {
+			t.Fatal("assessor from Applications should not see Platform team inventory")
+		}
+		if !strings.Contains(body, "apps-item") {
+			t.Fatal("assessor from Applications should see own team inventory")
+		}
+	})
+
+	t.Run("administrator sees all inventory", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, "/inventory", users.RoleSlugAdministrator, 0, "")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+		}
+		body := rr.Body.String()
+		if !strings.Contains(body, "platform-item") {
+			t.Fatal("administrator should see Platform team inventory")
+		}
+		if !strings.Contains(body, "apps-item") {
+			t.Fatal("administrator should see Applications team inventory")
+		}
+	})
+}
+
+// ── Inventory detail isolation ────────────────────────────────────────────────
+
+func TestTeamIsolation_InventoryDetail(t *testing.T) {
+	h, platformItemID, appsItemID := newIsolationTestHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	platformPath := fmt.Sprintf("/inventory/%d", platformItemID)
+	appsPath := fmt.Sprintf("/inventory/%d", appsItemID)
+
+	t.Run("reader blocked from other team item", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, platformPath, users.RoleSlugReader, applicationsTeamID, "Applications")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for reader accessing other team item, got %d", rr.Code)
+		}
+	})
+
+	t.Run("assessor blocked from other team item", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, platformPath, users.RoleSlugAssessor, applicationsTeamID, "Applications")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for assessor accessing other team item, got %d", rr.Code)
+		}
+	})
+
+	t.Run("reader allowed own team item", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, appsPath, users.RoleSlugReader, applicationsTeamID, "Applications")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200 for reader accessing own team item, got %d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("assessor allowed own team item", func(t *testing.T) {
+		req := authenticatedRequestForTeam(t, http.MethodGet, appsPath, users.RoleSlugAssessor, applicationsTeamID, "Applications")
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200 for assessor accessing own team item, got %d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("administrator allowed any item", func(t *testing.T) {
+		for _, path := range []string{platformPath, appsPath} {
+			req := authenticatedRequestForTeam(t, http.MethodGet, path, users.RoleSlugAdministrator, 0, "")
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("expected 200 for administrator on %s, got %d body=%s", path, rr.Code, rr.Body.String())
+			}
+		}
+	})
+}
+
+// ── Assessment creation authority ─────────────────────────────────────────────
+
+func wizardForm(inventoryItemID int64) url.Values {
+	f := url.Values{}
+	f.Set("inventory_item_id", fmt.Sprintf("%d", inventoryItemID))
+	f.Set("artefact_name", "test-artefact")
+	f.Set("artefact_type", "application-container")
+	f.Set("artefact_digest", "sha256:abc123def456")
+	f.Set("artefact_registry", "ghcr.io")
+	return f
+}
+
+func TestTeamIsolation_AssessmentCreation(t *testing.T) {
+	h, platformItemID, appsItemID := newIsolationTestHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	t.Run("assessor can assess own team inventory", func(t *testing.T) {
+		req := authenticatedFormPostForTeam(t, "/wizard/new", users.RoleSlugAssessor, applicationsTeamID, "Applications", wizardForm(appsItemID))
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		// Success → 302 redirect to wizard step 2.
+		if rr.Code != http.StatusFound {
+			t.Fatalf("expected 302 for assessor assessing own team item, got %d body=%s", rr.Code, rr.Body.String())
+		}
+		if !strings.HasPrefix(rr.Header().Get("Location"), "/wizard/") {
+			t.Fatalf("expected redirect to /wizard/..., got %q", rr.Header().Get("Location"))
+		}
+	})
+
+	t.Run("assessor cannot assess other team inventory", func(t *testing.T) {
+		req := authenticatedFormPostForTeam(t, "/wizard/new", users.RoleSlugAssessor, applicationsTeamID, "Applications", wizardForm(platformItemID))
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for assessor assessing other team item, got %d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("administrator can assess any inventory item", func(t *testing.T) {
+		for _, itemID := range []int64{platformItemID, appsItemID} {
+			req := authenticatedFormPostForTeam(t, "/wizard/new", users.RoleSlugAdministrator, 0, "", wizardForm(itemID))
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+			if rr.Code != http.StatusFound {
+				t.Fatalf("expected 302 for administrator assessing item %d, got %d body=%s", itemID, rr.Code, rr.Body.String())
+			}
+		}
+	})
+}
+
+// ── Inventory existence validation ────────────────────────────────────────────
+
+func TestTeamIsolation_InventoryExistence(t *testing.T) {
+	h, _, _ := newIsolationTestHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	t.Run("non-existent inventory item returns 404", func(t *testing.T) {
+		req := authenticatedFormPostForTeam(t, "/wizard/new", users.RoleSlugAdministrator, 0, "", wizardForm(9999))
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 for non-existent inventory item, got %d body=%s", rr.Code, rr.Body.String())
+		}
+	})
+
+	t.Run("missing inventory_item_id redirects to inventory", func(t *testing.T) {
+		form := url.Values{}
+		form.Set("artefact_name", "test")
+		req := authenticatedFormPostForTeam(t, "/wizard/new", users.RoleSlugAssessor, platformTeamID, "Platform", form)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusFound {
+			t.Fatalf("expected 302 redirect for missing inventory_item_id, got %d", rr.Code)
+		}
+		if rr.Header().Get("Location") != "/inventory" {
+			t.Fatalf("expected redirect to /inventory, got %q", rr.Header().Get("Location"))
 		}
 	})
 }

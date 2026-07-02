@@ -3,6 +3,7 @@ package web
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/h3ow3d/special-dollop/internal/audit"
 	"github.com/h3ow3d/special-dollop/internal/domain"
 	"github.com/h3ow3d/special-dollop/internal/infra/security"
+	"github.com/h3ow3d/special-dollop/internal/inventory"
 	"github.com/h3ow3d/special-dollop/internal/rbac"
 )
 
@@ -310,6 +312,15 @@ func (h *Handler) wizardStart(w http.ResponseWriter, r *http.Request) {
 			if id, err := strconv.ParseInt(idStr, 10, 64); err == nil && id > 0 {
 				item, err := h.inventory.inventorySvc.GetByID(r.Context(), id)
 				if err == nil {
+					// Team isolation: non-administrators may not pre-populate from
+					// an inventory item that belongs to another team.
+					session, _ := security.SessionFromContext(r.Context())
+					if session.EffectiveRoleSlug() != string(rbac.RoleAdministrator) {
+						if session.TeamID == nil || *session.TeamID != item.TeamID {
+							http.Error(w, "forbidden", http.StatusForbidden)
+							return
+						}
+					}
 					data["inventoryItemID"] = id
 					data["inventoryItemName"] = item.Name
 					data["inventoryRegistry"] = item.Registry
@@ -333,6 +344,23 @@ func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 		if err != nil || id <= 0 {
 			http.Redirect(w, r, "/inventory", http.StatusFound)
 			return
+		}
+		item, err := h.inventory.inventorySvc.GetByID(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, inventory.ErrNotFound) {
+				http.Error(w, "inventory item not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		// Team isolation: assessors may only create assessments for their own team's inventory.
+		session, _ := security.SessionFromContext(r.Context())
+		if session.EffectiveRoleSlug() == string(rbac.RoleAssessor) {
+			if session.TeamID == nil || *session.TeamID != item.TeamID {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 		}
 		inventoryItemID = id
 	}
