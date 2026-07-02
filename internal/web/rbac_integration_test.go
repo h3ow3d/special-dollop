@@ -837,22 +837,13 @@ func TestInventoryRefreshDiscoveryFailureRendersDetailPage(t *testing.T) {
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d body=%s", rr.Code, rr.Body.String())
+	// Discovery now runs in a background goroutine; the handler always redirects
+	// immediately so errors are surfaced through logs rather than inline.
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d body=%s", rr.Code, rr.Body.String())
 	}
-	if location := rr.Header().Get("Location"); location != "" {
-		t.Fatalf("expected no redirect on failure, got Location=%q", location)
-	}
-
-	body := rr.Body.String()
-	if !strings.Contains(body, "Refresh Discovery") {
-		t.Fatalf("expected inventory detail page content, got body=%s", body)
-	}
-	if !strings.Contains(body, "refresh discovery: list tags for ghcr.io/h3ow3d/customer-portal") {
-		t.Fatalf("expected discovery error message in page, got body=%s", body)
-	}
-	if strings.HasPrefix(strings.TrimSpace(body), "refresh discovery:") {
-		t.Fatalf("expected rendered page instead of standalone error body, got body=%s", body)
+	if location := rr.Header().Get("Location"); location != "/inventory/1" {
+		t.Fatalf("expected redirect to /inventory/1, got Location=%q", location)
 	}
 }
 
@@ -895,22 +886,13 @@ func TestInventoryRefreshDiscoveryFailureStillRendersPageWhenDataReloadFails(t *
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d body=%s", rr.Code, rr.Body.String())
+	// Discovery now runs in a background goroutine; the handler always redirects
+	// immediately so errors are surfaced through logs rather than inline.
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d body=%s", rr.Code, rr.Body.String())
 	}
-
-	body := rr.Body.String()
-	if !strings.Contains(body, "Refresh Discovery") {
-		t.Fatalf("expected inventory detail page content, got body=%s", body)
-	}
-	if !strings.Contains(body, "refresh discovery: list tags for ghcr.io/"+packageName) {
-		t.Fatalf("expected discovery error message in page, got body=%s", body)
-	}
-	if !strings.Contains(body, "context deadline exceeded") {
-		t.Fatalf("expected discovery error message in page, got body=%s", body)
-	}
-	if strings.Contains(body, "failed to load artifact digests:") {
-		t.Fatalf("expected rendered detail page without standalone digest load error body, got body=%s", body)
+	if location := rr.Header().Get("Location"); location != "/inventory/1" {
+		t.Fatalf("expected redirect to /inventory/1, got Location=%q", location)
 	}
 }
 
