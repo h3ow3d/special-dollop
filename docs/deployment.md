@@ -29,8 +29,8 @@
    You can generate the two local secrets with:
 
    ```bash
-   openssl rand -hex 16
-   openssl rand -hex 16
+   openssl rand -hex 32
+   openssl rand -hex 32
    ```
 
 4. Start the application:
