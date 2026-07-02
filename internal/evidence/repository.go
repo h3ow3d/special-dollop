@@ -204,7 +204,7 @@ func (r *pgRepository) loadTagNamesForDigestIDs(ctx context.Context, inventoryIt
 		SELECT artifact_digest_id, tag
 		FROM repository_tags
 		WHERE inventory_item_id = $1
-		  AND artifact_digest_id IN (` + inClause(len(digestIDs)) + `)
+		  AND artifact_digest_id IN (` + inClauseFrom(2, len(digestIDs)) + `)
 		ORDER BY tag`
 	args := append([]any{inventoryItemID}, int64Slice(digestIDs)...)
 	rows, err := r.db.QueryContext(ctx, q, args...)
@@ -368,16 +368,23 @@ func nullableTime(t time.Time) any {
 
 // inClause builds "$1,$2,$3,…" for n positional parameters starting at $1.
 func inClause(n int) string {
+	return inClauseFrom(1, n)
+}
+
+// inClauseFrom builds "$offset,$offset+1,…" for n positional parameters
+// starting at the given offset. Use this when earlier parameters already
+// consume placeholder numbers below offset.
+func inClauseFrom(offset, n int) string {
 	if n == 0 {
 		return ""
 	}
-	b := make([]byte, 0, n*4)
-	for i := 1; i <= n; i++ {
-		if i > 1 {
+	b := make([]byte, 0, n*5)
+	for i := 0; i < n; i++ {
+		if i > 0 {
 			b = append(b, ',')
 		}
 		b = append(b, '$')
-		b = appendInt(b, i)
+		b = appendInt(b, offset+i)
 	}
 	return string(b)
 }

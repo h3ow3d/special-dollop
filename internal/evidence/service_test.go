@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -325,6 +326,110 @@ func TestRefreshRepositoryReferrerFailureRecorded(t *testing.T) {
 	}
 	if digests[0].DiscoveryStatus != DiscoveryStatusFailed {
 		t.Fatalf("expected failed status, got %q", digests[0].DiscoveryStatus)
+	}
+}
+
+func TestRefreshRepositorySidecarTagsExcluded(t *testing.T) {
+	// Cosign fallback tags (sha256-<hex>.(sig|att|sbom)) must not be stored as
+	// primary artifact_digests rows. Instead their evidence should be attached
+	// to the subject digest they reference.
+	imgHex := strings.Repeat("a", 64)
+	imgDigest := "sha256:" + imgHex
+	sigDigest := "sha256:" + strings.Repeat("b", 64)
+	attDigest := "sha256:" + strings.Repeat("c", 64)
+
+	sigTag := "sha256-" + imgHex + ".sig"
+	attTag := "sha256-" + imgHex + ".att"
+
+	repo := newMemRepo()
+	disc := &fakeDiscoverer{
+		tags: []string{"v1.0.0", sigTag, attTag},
+		tagMap: map[string]*TagResolution{
+			"v1.0.0": {Tag: "v1.0.0", Digest: imgDigest, MediaType: "application/vnd.oci.image.manifest.v1+json"},
+			sigTag:   {Tag: sigTag, Digest: sigDigest, ArtifactType: "application/vnd.dev.cosign.artifact.sig.v1+json"},
+			attTag:   {Tag: attTag, Digest: attDigest, ArtifactType: "application/vnd.dev.cosign.artifact.att.v1+json"},
+		},
+		// OCI referrers API returns nothing (GHCR fallback case).
+		referrers: map[string][]*DigestEvidence{
+			imgDigest: {},
+		},
+	}
+	svc := NewService(repo, disc)
+
+	if err := svc.RefreshRepository(context.Background(), DiscoveryTarget{
+		InventoryItemID: 10,
+		Registry:        "ghcr.io",
+		Repository:      "org/repo",
+	}); err != nil {
+		t.Fatalf("RefreshRepository: %v", err)
+	}
+
+	// Only the image should appear as a primary artifact digest.
+	digests, _ := svc.ListDigestsByItem(context.Background(), 10)
+	if len(digests) != 1 {
+		t.Fatalf("expected 1 primary digest, got %d", len(digests))
+	}
+	if digests[0].Digest != imgDigest {
+		t.Fatalf("expected image digest %q, got %q", imgDigest, digests[0].Digest)
+	}
+
+	// Both sidecar tags must be attached as evidence to the image digest.
+	if len(digests[0].Evidence) != 2 {
+		t.Fatalf("expected 2 evidence items on image digest, got %d", len(digests[0].Evidence))
+	}
+
+	evTypes := make(map[EvidenceType]bool)
+	for _, e := range digests[0].Evidence {
+		evTypes[e.Type] = true
+	}
+	if !evTypes[EvidenceTypeSignature] {
+		t.Error("expected a signature evidence item")
+	}
+	if !evTypes[EvidenceTypeAttestation] {
+		t.Error("expected an attestation evidence item")
+	}
+
+	// Only the version tag (not the sidecar tags) should be stored.
+	tags, _ := svc.ListTagsByItem(context.Background(), 10)
+	if len(tags) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(tags))
+	}
+	if tags[0].Tag != "v1.0.0" {
+		t.Fatalf("expected tag %q, got %q", "v1.0.0", tags[0].Tag)
+	}
+}
+
+func TestRefreshRepositorySidecarUnknownSubjectDropped(t *testing.T) {
+	// A sidecar tag whose subject digest was not seen as a primary artifact
+	// in this scan must be silently dropped (no error, no primary row created).
+	unknownHex := strings.Repeat("d", 64)
+	sigTag := "sha256-" + unknownHex + ".sig"
+	sigDigest := "sha256:" + strings.Repeat("e", 64)
+
+	repo := newMemRepo()
+	disc := &fakeDiscoverer{
+		tags: []string{sigTag},
+		tagMap: map[string]*TagResolution{
+			sigTag: {Tag: sigTag, Digest: sigDigest, ArtifactType: "application/vnd.dev.cosign.artifact.sig.v1+json"},
+		},
+	}
+	svc := NewService(repo, disc)
+
+	if err := svc.RefreshRepository(context.Background(), DiscoveryTarget{
+		InventoryItemID: 11,
+		Registry:        "ghcr.io",
+		Repository:      "org/repo",
+	}); err != nil {
+		t.Fatalf("RefreshRepository: %v", err)
+	}
+
+	digests, _ := svc.ListDigestsByItem(context.Background(), 11)
+	if len(digests) != 0 {
+		t.Fatalf("expected 0 primary digests, got %d", len(digests))
+	}
+	tags, _ := svc.ListTagsByItem(context.Background(), 11)
+	if len(tags) != 0 {
+		t.Fatalf("expected 0 tags, got %d", len(tags))
 	}
 }
 
