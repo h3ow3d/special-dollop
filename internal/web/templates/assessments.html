@@ -1,0 +1,51 @@
+{{define "assessments.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Assessments – CDSCAM Assurance Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
+  <main class="max-w-6xl mx-auto p-8 space-y-8">
+    <section class="bg-white border rounded-lg p-6 space-y-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Assessment Hub</p>
+      <h1 class="text-2xl font-semibold">Assess OCI artefacts from a dedicated workspace</h1>
+      <p class="text-sm text-slate-600 max-w-3xl">
+        Launch a new assessment workflow, resolve artefact digests, and keep assurance work separate from the dashboard and administration areas.
+      </p>
+    </section>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+      <section class="bg-white border rounded-lg p-6 flex flex-col gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">Start a new assessment</h2>
+          <p class="text-sm text-slate-600 mt-1">
+            Open the guided suitability workflow for a specific OCI artefact and capture evidence, rationale, and participants.
+          </p>
+        </div>
+        <div class="mt-auto">
+          <a href="/wizard/new" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+            Start Assessment →
+          </a>
+        </div>
+      </section>
+
+      <section class="bg-white border rounded-lg p-6 flex flex-col gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">Resolve artefact digests</h2>
+          <p class="text-sm text-slate-600 mt-1">
+            Use OCI discovery to confirm the exact registry reference and digest before beginning an assessment.
+          </p>
+        </div>
+        <div class="mt-auto">
+          <a href="/oci/discover" class="inline-block bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900">
+            Open OCI Discovery →
+          </a>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>{{end}}

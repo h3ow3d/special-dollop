@@ -65,7 +65,14 @@ func (h *Handler) WithDevLoginService(svc DevLoginProvider) *Handler {
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"add": func(a, b int) int { return a + b },
-		"sub": func(a, b int) int { return a - b },
+		"formatTime": func(t time.Time) string {
+			if t.IsZero() {
+				return "Not available"
+			}
+			return t.UTC().Format("02 Jan 2006 15:04 MST")
+		},
+		"hasPrefix": strings.HasPrefix,
+		"sub":       func(a, b int) int { return a - b },
 		"roleLabel": func(slug string) string {
 			switch slug {
 			case "administrator":
@@ -154,11 +161,11 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 		pr.Use(rbac.RequireRole(rbac.RoleAdministrator, rbac.RoleAssessor, rbac.RoleReader))
 
 		pr.Get("/dashboard", h.dashboard)
+		pr.Get("/profile", h.profile)
 
 		pr.Get("/wizard", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusFound)
 		})
-		pr.Get("/wizard/new", h.wizardStart)
 
 		pr.Get("/wizard/{id}/step/{n}", h.wizardStep)
 
@@ -182,6 +189,8 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 
 		pr.Group(func(wr chi.Router) {
 			wr.Use(rbac.RequireRole(rbac.RoleAdministrator, rbac.RoleAssessor))
+			wr.Get("/assessments", h.assessments)
+			wr.Get("/wizard/new", h.wizardStart)
 			wr.Post("/wizard/new", h.wizardCreate)
 			wr.Post("/wizard/{id}/step/{n}", h.wizardStepSave)
 			wr.Post("/wizard/{id}/participants/add", h.wizardAddParticipant)
@@ -224,6 +233,14 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) dashboard(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "dashboard.html", nil)
+}
+
+func (h *Handler) assessments(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, "assessments.html", nil)
+}
+
+func (h *Handler) profile(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, "profile.html", nil)
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {

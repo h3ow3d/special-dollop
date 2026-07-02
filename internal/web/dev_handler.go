@@ -187,6 +187,8 @@ func sanitizeReturnTarget(v string) string {
 func hasAllowedDevReturnPrefix(v string) bool {
 	switch {
 	case strings.HasPrefix(v, "/dashboard"),
+		strings.HasPrefix(v, "/assessments"),
+		strings.HasPrefix(v, "/profile"),
 		strings.HasPrefix(v, "/wizard"),
 		strings.HasPrefix(v, "/admin"),
 		strings.HasPrefix(v, "/oci"),

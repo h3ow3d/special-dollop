@@ -1,24 +1,27 @@
-{{define "auth_header.html"}}<header class="bg-white border-b px-6 py-3 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
-  <div class="flex items-center gap-6">
-    <a href="/dashboard" class="font-semibold">CDSCAM</a>
-    <nav class="flex flex-wrap items-center gap-4 text-sm">
-      <a href="/dashboard" class="hover:text-blue-600">Dashboard</a>
-      {{if or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor")}}
-      <a href="/wizard/new" class="hover:text-blue-600">Assessments</a>
-      {{end}}
-      {{if eq .session.EffectiveRoleSlug "administrator"}}
-      <div class="relative group">
-        <button aria-haspopup="true" class="hover:text-blue-600 flex items-center gap-1">Administration <span class="text-xs" aria-hidden="true">▾</span></button>
-        <div class="absolute left-0 top-full hidden group-hover:block bg-white border rounded shadow-lg z-10 min-w-[160px] py-1" role="menu">
-          <a href="/admin/users" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Users</a>
-          <a href="/admin/teams" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Teams</a>
-          <a href="/admin/roles" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Roles</a>
+{{define "auth_header.html"}}<header class="bg-white border-b">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div class="flex items-start gap-8">
+      <a href="/dashboard" class="shrink-0">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">CDSCAM</p>
+        <p class="text-sm font-semibold text-slate-900">Assurance Platform</p>
+      </a>
+      <nav class="flex flex-wrap items-center gap-2 text-sm">
+        <a href="/dashboard" class="{{if eq .requestURI "/dashboard"}}bg-slate-900 text-white{{else}}text-slate-600 hover:text-blue-600 hover:bg-slate-100{{end}} rounded-full px-3 py-1.5 font-medium">Dashboard</a>
+        {{if or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor")}}
+        <a href="/assessments" class="{{if or (hasPrefix .requestURI "/assessments") (hasPrefix .requestURI "/wizard")}}bg-slate-900 text-white{{else}}text-slate-600 hover:text-blue-600 hover:bg-slate-100{{end}} rounded-full px-3 py-1.5 font-medium">Assessments</a>
+        {{end}}
+        {{if eq .session.EffectiveRoleSlug "administrator"}}
+        <div class="relative group">
+          <button aria-haspopup="true" class="{{if hasPrefix .requestURI "/admin"}}bg-slate-900 text-white{{else}}text-slate-600 hover:text-blue-600 hover:bg-slate-100{{end}} rounded-full px-3 py-1.5 font-medium flex items-center gap-1">Administration <span class="text-xs" aria-hidden="true">▾</span></button>
+          <div class="absolute left-0 top-full hidden group-hover:block bg-white border rounded shadow-lg z-10 min-w-[160px] py-1" role="menu">
+            <a href="/admin/users" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Users</a>
+            <a href="/admin/teams" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Teams</a>
+          </div>
         </div>
-      </div>
-      {{end}}
-    </nav>
-  </div>
-  <div class="relative group flex items-center text-sm">
+        {{end}}
+      </nav>
+    </div>
+    <div class="relative group flex items-center text-sm">
     {{if .user}}
     <button aria-haspopup="true" aria-label="User menu for @{{.user.GitHubUsername}}" class="flex items-center gap-2 hover:text-blue-600">
       {{if .user.AvatarURL}}<img src="{{.user.AvatarURL}}" alt="avatar" class="w-6 h-6 rounded-full" />{{end}}
@@ -29,17 +32,18 @@
     <div class="absolute right-0 top-full hidden group-hover:block bg-white border rounded shadow-lg z-10 min-w-[200px] py-1" role="menu">
       <div class="px-4 py-2 border-b">
         <p class="font-medium text-sm">@{{.user.GitHubUsername}}</p>
-        <p class="text-xs text-slate-500">{{if .session.TeamName}}{{.session.TeamName}}{{else}}No team{{end}} · {{roleLabel .session.EffectiveRoleSlug}}</p>
+        <p class="text-xs text-slate-500">{{if .session.EffectiveTeamName}}{{.session.EffectiveTeamName}}{{else}}No team{{end}} · {{roleLabel .session.EffectiveRoleSlug}}</p>
       </div>
-      <a href="/dashboard" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Dashboard</a>
+      <a href="/profile" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Profile</a>
       <form method="post" action="/auth/logout" class="block">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
-        <button class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700" role="menuitem">Sign out</button>
+        <button class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700" role="menuitem">Logout</button>
       </form>
     </div>
     {{else}}
     <a href="/auth/login" class="hover:text-blue-600">Sign in</a>
     {{end}}
+    </div>
   </div>
 </header>{{end}}
 

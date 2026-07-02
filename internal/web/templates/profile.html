@@ -1,0 +1,87 @@
+{{define "profile.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Profile – CDSCAM Assurance Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
+  <main class="max-w-4xl mx-auto p-8 space-y-6">
+    <section class="bg-white border rounded-lg p-6 space-y-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Profile</p>
+      <h1 class="text-2xl font-semibold">{{if .user.DisplayName}}{{.user.DisplayName}}{{else}}@{{.user.GitHubUsername}}{{end}}</h1>
+      <p class="text-sm text-slate-600">Review your GitHub identity, platform access, and current authenticated session.</p>
+    </section>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+      <section class="bg-white border rounded-lg p-6 space-y-4">
+        <h2 class="text-lg font-semibold">GitHub identity</h2>
+        <dl class="space-y-3 text-sm">
+          <div>
+            <dt class="font-medium text-slate-900">Username</dt>
+            <dd class="text-slate-600">@{{.user.GitHubUsername}}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-900">Display name</dt>
+            <dd class="text-slate-600">{{if .user.DisplayName}}{{.user.DisplayName}}{{else}}Not available{{end}}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-900">Email</dt>
+            <dd class="text-slate-600">{{if .user.Email}}{{.user.Email}}{{else}}Not available{{end}}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-900">Organisation</dt>
+            <dd class="text-slate-600">{{if .user.Organisation}}{{.user.Organisation}}{{else}}Not available{{end}}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-900">GitHub teams</dt>
+            <dd class="text-slate-600">
+              {{if .user.TeamMembership}}
+              <ul class="list-disc pl-5 space-y-1">
+                {{range .user.TeamMembership}}<li>{{.}}</li>{{end}}
+              </ul>
+              {{else}}
+              Not available
+              {{end}}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="bg-white border rounded-lg p-6 space-y-4">
+        <h2 class="text-lg font-semibold">Platform access</h2>
+        <dl class="space-y-3 text-sm">
+          <div>
+            <dt class="font-medium text-slate-900">Role</dt>
+            <dd class="text-slate-600">{{roleLabel .session.EffectiveRoleSlug}}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-900">Team</dt>
+            <dd class="text-slate-600">{{if .session.EffectiveTeamName}}{{.session.EffectiveTeamName}}{{else}}Not assigned{{end}}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-900">Authentication source</dt>
+            <dd class="text-slate-600">{{if eq .session.AuthSource "dev"}}Development login{{else}}GitHub OAuth{{end}}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-900">Signed in at</dt>
+            <dd class="text-slate-600">{{formatTime .session.LoginAt}}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-900">Status</dt>
+            <dd class="text-slate-600">{{if .session.Active}}Active{{else}}Inactive{{end}}</dd>
+          </div>
+          {{if .session.IsImpersonating}}
+          <div>
+            <dt class="font-medium text-slate-900">Development impersonation</dt>
+            <dd class="text-slate-600">Active for this session.</dd>
+          </div>
+          {{end}}
+        </dl>
+      </section>
+    </div>
+  </main>
+</body>
+</html>{{end}}
