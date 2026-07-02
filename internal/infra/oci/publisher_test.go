@@ -41,3 +41,23 @@ func TestPredicateTypeFromEnvelope(t *testing.T) {
 		t.Fatalf("unexpected predicate type: %q", got)
 	}
 }
+
+func TestShouldSkipReferrersGC(t *testing.T) {
+	tests := []struct {
+		name     string
+		registry string
+		want     bool
+	}{
+		{name: "ghcr", registry: "ghcr.io", want: true},
+		{name: "ghcr uppercase", registry: " GHCR.IO ", want: true},
+		{name: "other registry", registry: "registry.example.com", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldSkipReferrersGC(tt.registry); got != tt.want {
+				t.Fatalf("shouldSkipReferrersGC(%q) = %v, want %v", tt.registry, got, tt.want)
+			}
+		})
+	}
+}
