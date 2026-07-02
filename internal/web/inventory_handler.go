@@ -327,6 +327,8 @@ func (ih *InventoryHandler) refreshDiscovery(w http.ResponseWriter, r *http.Requ
 	// (user session, logging fields) are preserved via context.WithoutCancel.
 	refreshCtx := context.WithoutCancel(r.Context())
 	go func() {
+		// Errors are logged at ERROR level by RefreshEvidence itself; the
+		// return value is intentionally discarded here.
 		_ = ih.inventorySvc.RefreshEvidence(refreshCtx, item.ID)
 	}()
 
