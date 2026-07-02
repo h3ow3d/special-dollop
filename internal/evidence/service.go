@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/h3ow3d/special-dollop/internal/infra/security"
+	infrolog "github.com/h3ow3d/special-dollop/internal/infra/logging"
 )
 
 // RepositoryDiscoverer resolves OCI metadata and evidence for all tags in a
@@ -56,7 +56,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 
 	slog.Info("inventory discovery refresh started",
 		"operation", "evidence.refresh",
-		"user", usernameFromContext(ctx),
+		"user", userFromContext(ctx),
 		"role", roleFromContext(ctx),
 		"team", teamFromContext(ctx),
 		"inventory_item_id", target.InventoryItemID,
@@ -82,7 +82,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 			// Non-fatal: skip this tag and continue with the next.
 			slog.Warn("inventory discovery tag resolution failed",
 				"operation", "evidence.resolve_tag",
-				"user", usernameFromContext(ctx),
+				"user", userFromContext(ctx),
 				"role", roleFromContext(ctx),
 				"team", teamFromContext(ctx),
 				"inventory_item_id", target.InventoryItemID,
@@ -123,7 +123,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 		}
 		slog.Debug("inventory discovery progress",
 			"operation", "evidence.resolve_tag",
-			"user", usernameFromContext(ctx),
+			"user", userFromContext(ctx),
 			"role", roleFromContext(ctx),
 			"team", teamFromContext(ctx),
 			"inventory_item_id", target.InventoryItemID,
@@ -160,7 +160,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 			errMsg = strings.Join(warnings, "\n")
 			slog.Warn("inventory discovery warnings",
 				"operation", "evidence.list_referrers",
-				"user", usernameFromContext(ctx),
+				"user", userFromContext(ctx),
 				"role", roleFromContext(ctx),
 				"team", teamFromContext(ctx),
 				"inventory_item_id", target.InventoryItemID,
@@ -174,7 +174,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 		}
 		slog.Debug("inventory discovery progress",
 			"operation", "evidence.list_referrers",
-			"user", usernameFromContext(ctx),
+			"user", userFromContext(ctx),
 			"role", roleFromContext(ctx),
 			"team", teamFromContext(ctx),
 			"inventory_item_id", target.InventoryItemID,
@@ -185,7 +185,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 
 	slog.Info("inventory discovery refresh complete",
 		"operation", "evidence.refresh",
-		"user", usernameFromContext(ctx),
+		"user", userFromContext(ctx),
 		"role", roleFromContext(ctx),
 		"team", teamFromContext(ctx),
 		"inventory_item_id", target.InventoryItemID,
@@ -233,7 +233,7 @@ func (s *Service) GetSummaries(ctx context.Context) (map[int64]*RepositorySummar
 func logUnexpectedError(ctx context.Context, operation string, inventoryItemID int64, err error) {
 	slog.Error("unexpected inventory discovery error",
 		"operation", operation,
-		"user", usernameFromContext(ctx),
+		"user", userFromContext(ctx),
 		"role", roleFromContext(ctx),
 		"team", teamFromContext(ctx),
 		"inventory_item_id", inventoryItemID,
@@ -241,23 +241,17 @@ func logUnexpectedError(ctx context.Context, operation string, inventoryItemID i
 	)
 }
 
-func usernameFromContext(ctx context.Context) string {
-	if session, ok := security.SessionFromContext(ctx); ok {
-		return session.GitHubUser.GitHubUsername
-	}
-	return ""
+func userFromContext(ctx context.Context) string {
+	user, _, _ := infrolog.UserContextFields(ctx)
+	return user
 }
 
 func roleFromContext(ctx context.Context) string {
-	if session, ok := security.SessionFromContext(ctx); ok {
-		return session.EffectiveRoleSlug()
-	}
-	return ""
+	_, role, _ := infrolog.UserContextFields(ctx)
+	return role
 }
 
 func teamFromContext(ctx context.Context) string {
-	if session, ok := security.SessionFromContext(ctx); ok {
-		return session.EffectiveTeamName()
-	}
-	return ""
+	_, _, team := infrolog.UserContextFields(ctx)
+	return team
 }

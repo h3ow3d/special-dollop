@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/h3ow3d/special-dollop/internal/infra/security"
 )
 
 type statusRecorder struct {
@@ -39,14 +38,7 @@ func RequestLogger(next http.Handler) http.Handler {
 			recorder.status = http.StatusOK
 		}
 
-		user := ""
-		role := ""
-		team := ""
-		if session, ok := security.SessionFromContext(r.Context()); ok {
-			user = session.GitHubUser.GitHubUsername
-			role = session.EffectiveRoleSlug()
-			team = session.EffectiveTeamName()
-		}
+		user, role, team := UserContextFields(r.Context())
 
 		slog.Info("http request completed",
 			"method", r.Method,

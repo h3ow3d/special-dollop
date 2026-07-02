@@ -146,14 +146,15 @@ func main() {
 	csrfKey := []byte(padTo32(getenv("CSRF_AUTH_KEY", "replace-me-with-32-byte-csrf-secret")))
 	addr := getenv("HTTP_ADDR", ":8080")
 
+	logger.Info("route registration")
+	router := h.Router(csrfKey)
+	logger.Info("route registration complete")
+
 	s := &http.Server{
 		Addr:              addr,
-		Handler:           nil,
+		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	logger.Info("route registration")
-	s.Handler = h.Router(csrfKey)
-	logger.Info("route registration complete")
 
 	logger.Info("http server startup", "addr", addr)
 	logger.Info("startup complete", "addr", addr)

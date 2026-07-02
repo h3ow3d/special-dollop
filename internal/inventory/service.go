@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/h3ow3d/special-dollop/internal/evidence"
-	"github.com/h3ow3d/special-dollop/internal/infra/security"
+	infrolog "github.com/h3ow3d/special-dollop/internal/infra/logging"
 )
 
 // Service provides inventory management operations.
@@ -30,7 +30,7 @@ func (s *Service) Create(ctx context.Context, item *InventoryItem) error {
 	}
 	slog.Info("inventory item created",
 		"operation", "inventory.create",
-		"user", usernameFromContext(ctx),
+		"user", userFromContext(ctx),
 		"role", roleFromContext(ctx),
 		"team", teamFromContext(ctx),
 		"inventory_item_id", item.ID,
@@ -57,7 +57,7 @@ func (s *Service) Update(ctx context.Context, item *InventoryItem) error {
 	}
 	slog.Info("inventory item updated",
 		"operation", "inventory.update",
-		"user", usernameFromContext(ctx),
+		"user", userFromContext(ctx),
 		"role", roleFromContext(ctx),
 		"team", teamFromContext(ctx),
 		"inventory_item_id", item.ID,
@@ -99,7 +99,7 @@ func (s *Service) RefreshEvidence(ctx context.Context, id int64) error {
 	}
 	slog.Info("inventory refresh requested",
 		"operation", "inventory.refresh",
-		"user", usernameFromContext(ctx),
+		"user", userFromContext(ctx),
 		"role", roleFromContext(ctx),
 		"team", teamFromContext(ctx),
 		"inventory_item_id", id,
@@ -155,7 +155,7 @@ func (s *Service) refreshEvidence(ctx context.Context, item *InventoryItem) erro
 	}
 	slog.Info("inventory refresh complete",
 		"operation", "inventory.refresh",
-		"user", usernameFromContext(ctx),
+		"user", userFromContext(ctx),
 		"role", roleFromContext(ctx),
 		"team", teamFromContext(ctx),
 		"inventory_item_id", item.ID,
@@ -166,7 +166,7 @@ func (s *Service) refreshEvidence(ctx context.Context, item *InventoryItem) erro
 func logError(ctx context.Context, operation string, inventoryItemID int64, err error) {
 	slog.Error("unexpected inventory error",
 		"operation", operation,
-		"user", usernameFromContext(ctx),
+		"user", userFromContext(ctx),
 		"role", roleFromContext(ctx),
 		"team", teamFromContext(ctx),
 		"inventory_item_id", inventoryItemID,
@@ -174,23 +174,17 @@ func logError(ctx context.Context, operation string, inventoryItemID int64, err 
 	)
 }
 
-func usernameFromContext(ctx context.Context) string {
-	if session, ok := security.SessionFromContext(ctx); ok {
-		return session.GitHubUser.GitHubUsername
-	}
-	return ""
+func userFromContext(ctx context.Context) string {
+	user, _, _ := infrolog.UserContextFields(ctx)
+	return user
 }
 
 func roleFromContext(ctx context.Context) string {
-	if session, ok := security.SessionFromContext(ctx); ok {
-		return session.EffectiveRoleSlug()
-	}
-	return ""
+	_, role, _ := infrolog.UserContextFields(ctx)
+	return role
 }
 
 func teamFromContext(ctx context.Context) string {
-	if session, ok := security.SessionFromContext(ctx); ok {
-		return session.EffectiveTeamName()
-	}
-	return ""
+	_, _, team := infrolog.UserContextFields(ctx)
+	return team
 }
