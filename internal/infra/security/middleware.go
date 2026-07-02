@@ -74,7 +74,7 @@ MaxAge:   300,
 })
 
 authURL := fmt.Sprintf(
-"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=user%%3Aemail&state=%s",
+"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=user%%3Aemail%%20read%%3Aorg&state=%s",
 url.QueryEscape(h.cfg.ClientID),
 url.QueryEscape(h.cfg.RedirectURL),
 url.QueryEscape(state),
@@ -189,6 +189,16 @@ Primary  bool   `json:"primary"`
 Verified bool   `json:"verified"`
 }
 
+// githubOrg is one entry from GET /user/orgs.
+type githubOrg struct {
+Login string `json:"login"`
+}
+
+// githubTeam is one entry from GET /user/teams.
+type githubTeam struct {
+Slug string `json:"slug"`
+}
+
 // fetchUser retrieves GitHub user identity using the provided access token.
 func (h *OAuthHandler) fetchUser(ctx context.Context, token string) (domain.User, error) {
 req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
@@ -216,10 +226,15 @@ if displayName == "" {
 displayName = gu.Login
 }
 
+org := h.fetchPrimaryOrg(ctx, token)
+teams := h.fetchTeamSlugs(ctx, token)
+
 return domain.User{
 GitHubUsername: gu.Login,
 DisplayName:    displayName,
 Email:          email,
+Organisation:   org,
+TeamMembership: teams,
 OIDCSubject:    fmt.Sprintf("github:%s", gu.Login),
 }, nil
 }
@@ -246,6 +261,50 @@ return e.Email
 }
 }
 return ""
+}
+
+// fetchPrimaryOrg returns the login of the first organisation the user belongs to.
+// Returns an empty string if the user belongs to no organisations or the call fails.
+func (h *OAuthHandler) fetchPrimaryOrg(ctx context.Context, token string) string {
+req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/orgs?per_page=1", nil)
+req.Header.Set("Authorization", "Bearer "+token)
+req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+resp, err := http.DefaultClient.Do(req)
+if err != nil {
+return ""
+}
+defer resp.Body.Close()
+
+var orgs []githubOrg
+if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil || len(orgs) == 0 {
+return ""
+}
+return orgs[0].Login
+}
+
+// fetchTeamSlugs returns the slug of every team the user belongs to (up to 100).
+// Returns nil if the call fails or the user belongs to no teams.
+func (h *OAuthHandler) fetchTeamSlugs(ctx context.Context, token string) []string {
+req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/teams?per_page=100", nil)
+req.Header.Set("Authorization", "Bearer "+token)
+req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+resp, err := http.DefaultClient.Do(req)
+if err != nil {
+return nil
+}
+defer resp.Body.Close()
+
+var teams []githubTeam
+if err := json.NewDecoder(resp.Body).Decode(&teams); err != nil || len(teams) == 0 {
+return nil
+}
+slugs := make([]string, 0, len(teams))
+for _, t := range teams {
+slugs = append(slugs, t.Slug)
+}
+return slugs
 }
 
 // AuthMiddleware reads the signed session cookie and populates the request context

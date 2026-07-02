@@ -43,9 +43,9 @@ internal/
 ## Authentication
 
 GitHub OAuth 2.0 flow:
-1. `/auth/login` → redirect to GitHub with random state
+1. `/auth/login` → redirect to GitHub with random state (scopes: `user:email read:org`)
 2. `/auth/callback` → exchange code, fetch user, set signed session cookie
-3. User identity (username, email, OIDC subject) is stored in a signed Gorilla SecureCookie
+3. User identity (username, display name, email, organisation, team membership, OIDC subject) is stored in a signed Gorilla SecureCookie
 
 ## Assessment Wizard
 
@@ -80,8 +80,8 @@ Predicate fields:
 - `assessmentMetadata`: assessmentId, assessmentDate, reviewDate
 - `artefactMetadata`: name, type, digest, reference, registry
 - `decisionMetadata`: outcome, outcomeLabel, promotionPattern, rationale, requiredControls
-- `assessmentContent`: sections (notes + evidence per section), participants
-- `identityMetadata`: githubUsername, email, oidcSubject
+- `assessmentContent`: sections (notes + discussionNotes + evidence per section), participants
+- `identityMetadata`: githubUsername, displayName, email, organisation, teamMembership, oidcSubject
 
 ## Signing
 
@@ -94,13 +94,15 @@ The `Signer` interface in `internal/app/service.go` isolates signing so the impl
 
 ## OCI Integration
 
+The primary OCI registry is **GitHub Container Registry (GHCR)** (e.g. `ghcr.io/company/orders-api`).
+
 The `OCIPublisher` interface in `internal/app/service.go` is implemented by a stub for development. The stub logs the intended publish action.
 
 Production implementations should use:
-- **cosign attest** – for Sigstore-signed attestations
-- **oras attach** – for ORAS v2 referrers API
+- **cosign attest** – for Sigstore-signed attestations targeting GHCR
+- **oras attach** – for ORAS v2 referrers API targeting GHCR
 
-The interface is designed to support Harbor, Quay, and OCI Distribution Registry.
+The interface is designed so that Fulcio and Rekor can be added later without changing business logic.
 
 ## Local Development
 
@@ -111,6 +113,6 @@ docker compose up
 open http://localhost:8080
 ```
 
-Services started: `clph-web` + `registry` (local OCI registry on port 5000).
+Services started: `clph-web` only.
 
-No database service.
+No database service. No local registry. The application connects directly to GitHub APIs and GitHub Container Registry.

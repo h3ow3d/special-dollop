@@ -41,6 +41,11 @@
       </div>
 
       <div>
+        <label class="block text-sm font-medium mb-1">Discussion Notes</label>
+        <textarea name="discussion_notes" rows="3" placeholder="Additional discussion points, questions raised, or items for follow-up..." class="border rounded p-2 w-full text-sm">{{$resp.DiscussionNotes}}</textarea>
+      </div>
+
+      <div>
         <label class="block text-sm font-medium mb-1">Evidence References</label>
         <textarea name="evidence" rows="3" placeholder="One reference per line, e.g.:&#10;https://jira.example.com/SEC-001&#10;https://wiki.example.com/security-review" class="border rounded p-2 w-full text-sm font-mono">{{range $resp.Evidence}}{{.Reference}}
 {{end}}</textarea>

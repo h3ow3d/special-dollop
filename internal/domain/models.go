@@ -28,7 +28,9 @@ type User struct {
 	GitHubUsername string
 	DisplayName    string
 	Email          string
-	OIDCSubject    string // e.g. "github:<username>"
+	Organisation   string   // primary GitHub organisation
+	TeamMembership []string // GitHub team slugs within the organisation
+	OIDCSubject    string   // e.g. "github:<username>"
 }
 
 // ArtefactInfo describes the target OCI artefact being assessed.
@@ -114,10 +116,11 @@ type EvidenceRef struct {
 	Reviewed  bool
 }
 
-// SectionResponse captures the assessor's notes and evidence for one section.
+// SectionResponse captures the assessor's notes, discussion, and evidence for one section.
 type SectionResponse struct {
-	Notes    string
-	Evidence []EvidenceRef
+	Notes           string
+	DiscussionNotes string
+	Evidence        []EvidenceRef
 }
 
 // Participant is a workshop participant recorded for informational purposes.

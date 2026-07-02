@@ -226,8 +226,9 @@ return
 // Assessment section (steps 2–9)
 sectionName := domain.AllSections[step-2]
 resp := domain.SectionResponse{
-Notes:    r.FormValue("notes"),
-Evidence: parseEvidence(r.FormValue("evidence")),
+Notes:           r.FormValue("notes"),
+DiscussionNotes: r.FormValue("discussion_notes"),
+Evidence:        parseEvidence(r.FormValue("evidence")),
 }
 if err := h.svc.UpdateSection(state.ID, sectionName, resp); err != nil {
 http.Error(w, err.Error(), http.StatusBadRequest)

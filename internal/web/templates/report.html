@@ -29,6 +29,7 @@
     <div class="mb-4">
       <h3 class="font-medium">{{$meta.Label}}</h3>
       <p class="text-sm text-slate-700 mt-1">{{if $resp.Notes}}{{$resp.Notes}}{{else}}<em class="text-slate-400">No notes recorded.</em>{{end}}</p>
+      {{if $resp.DiscussionNotes}}<p class="text-xs text-slate-600 mt-1 italic"><strong>Discussion:</strong> {{$resp.DiscussionNotes}}</p>{{end}}
       {{if $resp.Evidence}}
       <ul class="mt-1 text-xs text-slate-500 space-y-0.5">
         {{range $resp.Evidence}}<li>• {{.Reference}}{{if .Reviewed}} ✓{{end}}</li>{{end}}

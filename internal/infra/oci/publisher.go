@@ -1,12 +1,13 @@
 // Package oci provides OCI artefact integration for attaching attestations.
 //
 // The Publisher interface is designed to support Cosign and ORAS as backing
-// implementations. The stub implementation logs the intended action and returns
-// a synthetic reference; it is suitable for development and local registry use.
+// implementations. The primary target is GitHub Container Registry (GHCR).
+// The stub implementation logs the intended action and returns a synthetic
+// reference; it is suitable for development.
 //
 // Future implementations should support:
-//   - cosign attest (Sigstore keyless or local key)
-//   - oras attach (ORAS v2 referrers API)
+//   - cosign attest (Sigstore keyless or local key) targeting GHCR
+//   - oras attach (ORAS v2 referrers API) targeting GHCR
 //   - Internal Fulcio / Rekor when available
 package oci
 

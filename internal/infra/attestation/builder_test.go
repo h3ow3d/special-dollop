@@ -17,7 +17,14 @@ state := &domain.AssessmentState{
 ID:             "test-id-001",
 AssessmentDate: time.Date(2026, 7, 2, 0, 0, 0, 0, time.UTC),
 ReviewDate:     time.Date(2027, 7, 2, 0, 0, 0, 0, time.UTC),
-User:           domain.User{GitHubUsername: "sam.holden", Email: "sam@example.com", OIDCSubject: "github:sam.holden"},
+User: domain.User{
+	GitHubUsername: "sam.holden",
+	DisplayName:    "Sam Holden",
+	Email:          "sam@example.com",
+	Organisation:   "acme-corp",
+	TeamMembership: []string{"platform-team", "security-team"},
+	OIDCSubject:    "github:sam.holden",
+},
 Artefact: domain.ArtefactInfo{
 Name:      "orders-api",
 Type:      "application-container",
@@ -72,6 +79,16 @@ t.Fatal("identityMetadata missing")
 }
 if im["githubUsername"] != "sam.holden" {
 t.Fatalf("expected sam.holden got %v", im["githubUsername"])
+}
+if im["displayName"] != "Sam Holden" {
+t.Fatalf("expected Sam Holden got %v", im["displayName"])
+}
+if im["organisation"] != "acme-corp" {
+t.Fatalf("expected acme-corp got %v", im["organisation"])
+}
+teams, _ := im["teamMembership"].([]any)
+if len(teams) != 2 {
+t.Fatalf("expected 2 team memberships, got %v", im["teamMembership"])
 }
 
 // Check assessment content
