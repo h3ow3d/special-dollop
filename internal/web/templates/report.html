@@ -1,0 +1,76 @@
+{{define "report.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CLPH Suitability Assessment Report</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8 bg-white text-slate-900 max-w-3xl mx-auto">
+  <h1 class="text-2xl font-bold mb-1">CLPH Suitability Assessment Report</h1>
+  <p class="text-sm text-slate-500 mb-6">Assessment ID: {{.state.ID}} · Date: {{.state.AssessmentDate.Format "2006-01-02"}}</p>
+
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold border-b pb-1 mb-2">Artefact</h2>
+    <ul class="text-sm space-y-0.5">
+      <li><strong>Name:</strong> {{.state.Artefact.Name}}</li>
+      <li><strong>Type:</strong> {{.state.Artefact.Type}}</li>
+      <li><strong>Digest:</strong> <code>{{.state.Artefact.Digest}}</code></li>
+      {{if .state.Artefact.Reference}}<li><strong>Reference:</strong> <code>{{.state.Artefact.Reference}}</code></li>{{end}}
+      <li><strong>Registry:</strong> {{.state.Artefact.Registry}}</li>
+      <li><strong>Review Date:</strong> {{.state.ReviewDate.Format "2006-01-02"}}</li>
+    </ul>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold border-b pb-1 mb-2">Assessment Sections</h2>
+    {{range .sections}}
+    {{$meta := sectionMeta .}}
+    {{$resp := sectionResp $.state .}}
+    <div class="mb-4">
+      <h3 class="font-medium">{{$meta.Label}}</h3>
+      <p class="text-sm text-slate-700 mt-1">{{if $resp.Notes}}{{$resp.Notes}}{{else}}<em class="text-slate-400">No notes recorded.</em>{{end}}</p>
+      {{if $resp.Evidence}}
+      <ul class="mt-1 text-xs text-slate-500 space-y-0.5">
+        {{range $resp.Evidence}}<li>• {{.Reference}}{{if .Reviewed}} ✓{{end}}</li>{{end}}
+      </ul>
+      {{end}}
+    </div>
+    {{end}}
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold border-b pb-1 mb-2">Decision</h2>
+    <ul class="text-sm space-y-0.5">
+      {{if .state.Outcome}}<li><strong>Outcome:</strong> {{.state.Outcome.Label}}</li>{{end}}
+      {{if .state.Pattern}}<li><strong>Promotion Pattern:</strong> {{.state.Pattern.Label}}</li>{{end}}
+      {{if .state.OutcomeRationale}}<li><strong>Rationale:</strong> {{.state.OutcomeRationale}}</li>{{end}}
+      {{if .state.RequiredControls}}<li><strong>Required Controls:</strong> {{.state.RequiredControls}}</li>{{end}}
+      {{if .state.PatternRationale}}<li><strong>Pattern Rationale:</strong> {{.state.PatternRationale}}</li>{{end}}
+    </ul>
+  </section>
+
+  {{if .state.Participants}}
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold border-b pb-1 mb-2">Workshop Participants</h2>
+    <ul class="text-sm space-y-0.5">
+      {{range .state.Participants}}<li>{{.Name}} — {{.Role}}, {{.Organisation}}</li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  {{if .state.Attestation}}
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold border-b pb-1 mb-2">Attestation</h2>
+    <ul class="text-sm space-y-0.5">
+      <li><strong>Signed by:</strong> {{.state.Attestation.SignedBy}} &lt;{{.state.Attestation.SignedEmail}}&gt;</li>
+      <li><strong>Signing time:</strong> {{.state.Attestation.SigningTime.Format "2006-01-02T15:04:05Z"}}</li>
+      {{if .state.Attestation.OCIReference}}<li><strong>OCI Reference:</strong> <code>{{.state.Attestation.OCIReference}}</code></li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  <footer class="text-xs text-slate-400 mt-8 border-t pt-4">
+    This report is a convenience copy only. The OCI-attached attestation is the authoritative record.
+  </footer>
+</body>
+</html>{{end}}

@@ -1,0 +1,24 @@
+{{define "index.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CLPH Suitability Assessment</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex items-center justify-center">
+  <main class="max-w-lg w-full mx-auto p-8 space-y-6 text-center">
+    <h1 class="text-3xl font-bold">CLPH Suitability Assessment</h1>
+    <p class="text-slate-600">A lightweight assessment and attestation generator for OCI artefacts.</p>
+    <ul class="text-left text-sm text-slate-700 space-y-1 bg-white border rounded p-4">
+      <li>✓ Authenticate with GitHub</li>
+      <li>✓ Guide through suitability assessment</li>
+      <li>✓ Record human decision — outcomes are never automatic</li>
+      <li>✓ Generate &amp; sign an in-toto attestation</li>
+      <li>✓ Attach attestation directly to the OCI artefact</li>
+    </ul>
+    <a class="inline-block bg-slate-900 text-white px-6 py-3 rounded-lg font-medium" href="/auth/login">
+      Sign in with GitHub
+    </a>
+  </main>
+</body>
+</html>{{end}}

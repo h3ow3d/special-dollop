@@ -1,0 +1,39 @@
+{{define "wizard_done.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Attestation Published – CLPH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <span class="font-semibold">CLPH Suitability Assessment</span>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-2xl mx-auto p-8 space-y-6 text-center">
+    <div class="text-6xl">✅</div>
+    <h1 class="text-2xl font-semibold">Attestation Published</h1>
+    <p class="text-slate-600">The signed suitability attestation has been attached to the OCI artefact. The OCI artefact is now the authoritative record.</p>
+
+    {{if .state.Attestation}}
+    <div class="bg-white border rounded p-4 text-sm text-left space-y-1">
+      <p><strong>Artefact:</strong> {{.state.Artefact.Name}}</p>
+      {{if .state.Attestation.OCIReference}}<p><strong>OCI Reference:</strong> <code class="text-xs">{{.state.Attestation.OCIReference}}</code></p>{{end}}
+      <p><strong>Signed by:</strong> {{.state.Attestation.SignedBy}}</p>
+      <p><strong>Signed at:</strong> {{.state.Attestation.SigningTime.Format "2006-01-02T15:04:05Z"}}</p>
+    </div>
+    {{end}}
+
+    <div class="space-y-2">
+      <p class="text-sm font-medium text-slate-700">Convenience Copies (the OCI attestation is authoritative)</p>
+      <div class="flex flex-col gap-2">
+        <a href="/wizard/{{.state.ID}}/download/envelope" class="bg-slate-200 text-slate-800 px-4 py-2 rounded">⬇ Download DSSE Envelope (JSON)</a>
+        <a href="/wizard/{{.state.ID}}/download/statement" class="bg-slate-200 text-slate-800 px-4 py-2 rounded">⬇ Download Attestation Statement (JSON)</a>
+        <a href="/wizard/{{.state.ID}}/download/report" class="bg-slate-200 text-slate-800 px-4 py-2 rounded">⬇ Download Human-Readable Report (HTML)</a>
+      </div>
+    </div>
+
+    <a href="/wizard/new" class="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg font-medium">Start New Assessment</a>
+  </main>
+</body>
+</html>{{end}}
