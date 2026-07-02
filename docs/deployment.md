@@ -25,6 +25,8 @@
    - `GITHUB_REDIRECT_URL` to `http://localhost:8080/auth/callback`
    - `CSRF_AUTH_KEY` to a random 32-byte secret
    - `SESSION_SECRET` to a random 32-byte secret
+   - `OCI_USERNAME` to the registry username used for attestation publication
+   - `OCI_PASSWORD` to the registry password or token used for attestation publication
 
    You can generate the two local secrets with:
 
@@ -56,6 +58,9 @@ No database service is required. No local registry is required. The application 
 | `CSRF_AUTH_KEY` | Yes | 32-byte key for CSRF token signing (hex or raw) |
 | `SESSION_SECRET` | Yes | 32-byte key for session cookie signing |
 | `SECURE_COOKIES` | No | Set to `"true"` in production (HTTPS). Default: `"false"` |
+| `OCI_USERNAME` | Usually | Registry username for attestation publication. Required for authenticated registries such as GHCR. |
+| `OCI_PASSWORD` | Usually | Registry password or token for attestation publication. For GHCR, use a token with package write access. |
+| `OCI_PLAIN_HTTP` | No | Set to `"true"` only for local non-TLS registries. Default: `"false"` |
 | `PORT` | No | Listen port. Default: `8080` |
 
 ## Container Image

@@ -25,8 +25,12 @@ if err != nil {
 log.Fatalf("signer: %v", err)
 }
 
-// OCI publisher – stub for development; swap for cosign/ORAS in production
-publisher := oci.NewStubPublisher()
+// OCI publisher – uploads the signed DSSE envelope as an OCI referrer.
+publisher := oci.NewPublisher(oci.PublisherConfig{
+Username:  getenv("OCI_USERNAME", ""),
+Password:  getenv("OCI_PASSWORD", ""),
+PlainHTTP: getenv("OCI_PLAIN_HTTP", "false") == "true",
+})
 
 // Attestation builder
 builder := attestation.NewBuilder()

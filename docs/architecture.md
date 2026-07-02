@@ -96,11 +96,12 @@ The `Signer` interface in `internal/app/service.go` isolates signing so the impl
 
 The primary OCI registry is **GitHub Container Registry (GHCR)** (e.g. `ghcr.io/company/orders-api`).
 
-The `OCIPublisher` interface in `internal/app/service.go` is implemented by a stub for development. The stub logs the intended publish action.
+The `OCIPublisher` interface in `internal/app/service.go` is implemented by an ORAS-backed publisher that uploads the DSSE envelope as an OCI referrer attached to the assessed artefact.
 
-Production implementations should use:
-- **cosign attest** – for Sigstore-signed attestations targeting GHCR
-- **oras attach** – for ORAS v2 referrers API targeting GHCR
+Current publication behaviour:
+- **ORAS / OCI 1.1 referrers** – attaches the DSSE envelope to the target artefact
+- **Registry auth via environment variables** – `OCI_USERNAME` and `OCI_PASSWORD`
+- **Predicate annotation** – the CLPH predicate type is recorded in manifest annotations for easier discovery
 
 The interface is designed so that Fulcio and Rekor can be added later without changing business logic.
 

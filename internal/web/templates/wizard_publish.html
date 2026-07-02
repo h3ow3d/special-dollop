@@ -27,7 +27,7 @@
       <div>
         <label class="block text-sm font-medium mb-1">Artefact Reference <span class="text-red-500">*</span></label>
         <input name="artifact_ref" required value="{{.state.Artefact.Reference}}" placeholder="repo@sha256:..." class="border rounded p-2 w-full font-mono text-sm" />
-        <p class="text-xs text-slate-500 mt-1">Prefer a digest reference to pin the exact artefact version.</p>
+        <p class="text-xs text-slate-500 mt-1">Prefer a digest reference to pin the exact artefact version. Full references such as <code>ghcr.io/org/repo@sha256:...</code> are also accepted.</p>
       </div>
       <button class="w-full bg-slate-900 text-white px-6 py-3 rounded-lg font-semibold">Attach Attestation to OCI Artefact</button>
     </form>
