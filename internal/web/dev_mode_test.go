@@ -53,7 +53,7 @@ func newDevModeHandler(t *testing.T, enabled bool) (*Handler, *security.OAuthHan
 	}
 	teamSvc := teams.NewService(&testAdminTeamRepo{
 		teams: []*teams.Team{
-			{ID: 10, Name: "Platform Team", Active: true},
+			{ID: 10, Name: "Platform", Active: true},
 		},
 	})
 	auditRepo := &capturingAuditRepo{}
