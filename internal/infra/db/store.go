@@ -112,6 +112,16 @@ func (s *Store) SaveAttestation(ctx context.Context, att domain.Attestation) (do
 	return att, nil
 }
 
+func (s *Store) GetAttestationByID(ctx context.Context, id int64) (domain.Attestation, error) {
+	var att domain.Attestation
+	err := s.pool.QueryRow(ctx, `SELECT id,assessment_id,statement_json,signature,signed_by,signed_email,oidc_subject,signing_time,oci_registry,oci_reference,published_at FROM attestations WHERE id=$1 AND deleted_at IS NULL`, id).
+		Scan(&att.ID, &att.AssessmentID, &att.StatementJSON, &att.Signature, &att.SignedBy, &att.SignedEmail, &att.OIDCSubject, &att.SigningTime, &att.OCIRegistry, &att.OCIReference, &att.PublishedAt)
+	if err != nil {
+		return domain.Attestation{}, err
+	}
+	return att, nil
+}
+
 func (s *Store) UpdateAttestationPublication(ctx context.Context, attestationID int64, registry, reference string, publishedAt time.Time) error {
 	_, err := s.pool.Exec(ctx, `UPDATE attestations SET oci_registry=$2,oci_reference=$3,published_at=$4 WHERE id=$1 AND deleted_at IS NULL`, attestationID, registry, reference, publishedAt)
 	return err

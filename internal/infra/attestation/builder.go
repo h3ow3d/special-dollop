@@ -1,10 +1,10 @@
 package attestation
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/h3ow3d/special-dollop/internal/domain"
 )
@@ -69,5 +69,6 @@ func trimDigest(v string) string {
 	if len(v) > len(prefix) && v[:len(prefix)] == prefix {
 		return v[len(prefix):]
 	}
-	return base64.StdEncoding.EncodeToString([]byte(v + time.Now().UTC().String()))[:32]
+	sum := sha256.Sum256([]byte(v))
+	return base64.StdEncoding.EncodeToString(sum[:])[:32]
 }

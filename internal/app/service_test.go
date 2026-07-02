@@ -33,6 +33,9 @@ func (f *fakeRepo) SaveAttestation(_ context.Context, att domain.Attestation) (d
 	att.ID = 1
 	return att, nil
 }
+func (f *fakeRepo) GetAttestationByID(_ context.Context, _ int64) (domain.Attestation, error) {
+	return domain.Attestation{ID: 1, AssessmentID: 42, StatementJSON: []byte(`{"x":1}`)}, nil
+}
 func (f *fakeRepo) UpdateAttestationPublication(_ context.Context, _ int64, _, _ string, _ time.Time) error {
 	return nil
 }

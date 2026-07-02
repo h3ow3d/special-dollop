@@ -102,7 +102,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: "clph_session", Value: fmt.Sprintf("%s|%s|%s|%s", logged.GitHubUser, logged.Email, logged.OIDCSubject, logged.Role), HttpOnly: true, Secure: false, SameSite: http.SameSiteStrictMode, Path: "/"})
+	http.SetCookie(w, &http.Cookie{Name: "clph_session", Value: fmt.Sprintf("%s|%s|%s|%s", logged.GitHubUser, logged.Email, logged.OIDCSubject, logged.Role), HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode, Path: "/"})
 	http.Redirect(w, r, "/assessments", http.StatusFound)
 }
 

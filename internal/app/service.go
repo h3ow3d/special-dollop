@@ -19,6 +19,7 @@ type Repository interface {
 	AddApproval(ctx context.Context, approval domain.Approval) error
 	SetAssessmentStatus(ctx context.Context, id int64, status domain.AssessmentStatus) error
 	SaveAttestation(ctx context.Context, att domain.Attestation) (domain.Attestation, error)
+	GetAttestationByID(ctx context.Context, id int64) (domain.Attestation, error)
 	UpdateAttestationPublication(ctx context.Context, attestationID int64, registry, reference string, publishedAt time.Time) error
 	CreateOrUpdateUser(ctx context.Context, user domain.User) (domain.User, error)
 	AppendAuditLog(ctx context.Context, log domain.AuditLog) error
@@ -151,12 +152,17 @@ func (s *Service) PublishAttestation(ctx context.Context, actor domain.User, ass
 		return ErrNotApproved
 	}
 
-	att, err := s.GenerateAndSignAttestation(ctx, actor, assessmentID)
-	if err != nil {
-		return err
-	}
+	var att domain.Attestation
 	if attestationID != 0 {
-		att.ID = attestationID
+		att, err = s.repo.GetAttestationByID(ctx, attestationID)
+		if err != nil {
+			return err
+		}
+	} else {
+		att, err = s.GenerateAndSignAttestation(ctx, actor, assessmentID)
+		if err != nil {
+			return err
+		}
 	}
 	ociRef, err := s.publish.Publish(ctx, registry, ref, att.StatementJSON)
 	if err != nil {
