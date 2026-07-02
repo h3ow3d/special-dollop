@@ -7,8 +7,11 @@ func TestNormalizeReferenceFullDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("normalizeReference: %v", err)
 	}
-	if got.Registry != "ghcr.io" || got.Repository != "h3ow3d/proverjay" {
-		t.Fatalf("unexpected repository: %+v", got)
+	if got.Registry != "ghcr.io" {
+		t.Fatalf("unexpected registry: %s", got.Registry)
+	}
+	if got.Repository != "h3ow3d/proverjay" {
+		t.Fatalf("unexpected repository: %s", got.Repository)
 	}
 	if got.Reference != "sha256:e48baa02c6cf8cc44b076b6a114e81d9a48427d385b5fdad88b2fa4dc3385d44" {
 		t.Fatalf("unexpected digest reference: %s", got.Reference)

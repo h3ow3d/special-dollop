@@ -73,7 +73,7 @@ func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envel
 		// The publisher resolves and pushes within a single target repository, so
 		// only the resolved target registry should ever need credentials here.
 		Credential: func(_ context.Context, hostport string) (auth.Credential, error) {
-			if hostport != targetRef.Registry || p.username == "" || p.password == "" {
+			if p.username == "" || p.password == "" || hostport != targetRef.Registry {
 				return auth.EmptyCredential, nil
 			}
 			return auth.Credential{
