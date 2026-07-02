@@ -27,6 +27,19 @@ type templateRenderer struct {
 	h *Handler
 }
 
+type adminUserRow struct {
+	ID             int64
+	GitHubUsername string
+	DisplayName    string
+	Email          string
+	CurrentRole    string
+	CurrentTeam    string
+	RoleID         int64
+	TeamID         int64
+	HasTeam        bool
+	Active         bool
+}
+
 func (tr *templateRenderer) render(w http.ResponseWriter, r *http.Request, name string, data map[string]any) {
 	tr.h.render(w, r, name, data)
 }
@@ -42,8 +55,7 @@ func NewAdminHandler(h *Handler, userSvc *users.Service, teamSvc *teams.Service,
 }
 
 // RegisterRoutes adds admin routes to the provided chi.Router. The router must
-// already have the RequireAuth middleware applied; RBAC (Administrator only) is
-// enforced inside each handler.
+// already have authentication and Administrator RBAC middleware applied.
 func (ah *AdminHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/admin/users", ah.listUsers)
 	r.Post("/admin/users/{id}/activate", ah.activateUser)
@@ -57,27 +69,9 @@ func (ah *AdminHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/admin/roles", ah.listRoles)
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-func (ah *AdminHandler) requireAdmin(r *http.Request) bool {
-	session, ok := security.SessionFromContext(r.Context())
-	return ok && session.RoleSlug == "administrator" && session.Active
-}
-
-func (ah *AdminHandler) forbiddenUnlessAdmin(w http.ResponseWriter, r *http.Request) bool {
-	if !ah.requireAdmin(r) {
-		http.Error(w, "forbidden – Administrator role required", http.StatusForbidden)
-		return false
-	}
-	return true
-}
-
 // ── User administration ───────────────────────────────────────────────────────
 
 func (ah *AdminHandler) listUsers(w http.ResponseWriter, r *http.Request) {
-	if !ah.forbiddenUnlessAdmin(w, r) {
-		return
-	}
 	us, err := ah.userSvc.List(r.Context())
 	if err != nil {
 		http.Error(w, "failed to list users: "+err.Error(), http.StatusInternalServerError)
@@ -93,8 +87,34 @@ func (ah *AdminHandler) listUsers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to list teams: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	roleNames := make(map[int64]string, len(roles))
+	for _, role := range roles {
+		roleNames[role.ID] = role.Name
+	}
+	teamNames := make(map[int64]string, len(ts))
+	for _, team := range ts {
+		teamNames[team.ID] = team.Name
+	}
+	rows := make([]adminUserRow, 0, len(us))
+	for _, user := range us {
+		row := adminUserRow{
+			ID:             user.ID,
+			GitHubUsername: user.GitHubUsername,
+			DisplayName:    user.DisplayName,
+			Email:          user.Email,
+			CurrentRole:    roleNames[user.RoleID],
+			RoleID:         user.RoleID,
+			Active:         user.Active,
+		}
+		if user.TeamID != nil {
+			row.HasTeam = true
+			row.TeamID = *user.TeamID
+			row.CurrentTeam = teamNames[*user.TeamID]
+		}
+		rows = append(rows, row)
+	}
 	ah.tmpl.render(w, r, "admin_users.html", map[string]any{
-		"users": us,
+		"users": rows,
 		"roles": roles,
 		"teams": ts,
 		"csrf":  csrf.Token(r),
@@ -102,9 +122,6 @@ func (ah *AdminHandler) listUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ah *AdminHandler) activateUser(w http.ResponseWriter, r *http.Request) {
-	if !ah.forbiddenUnlessAdmin(w, r) {
-		return
-	}
 	id := ah.parseID(w, chi.URLParam(r, "id"))
 	if id == 0 {
 		return
@@ -121,9 +138,6 @@ func (ah *AdminHandler) activateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ah *AdminHandler) deactivateUser(w http.ResponseWriter, r *http.Request) {
-	if !ah.forbiddenUnlessAdmin(w, r) {
-		return
-	}
 	id := ah.parseID(w, chi.URLParam(r, "id"))
 	if id == 0 {
 		return
@@ -140,9 +154,6 @@ func (ah *AdminHandler) deactivateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ah *AdminHandler) updateUserRole(w http.ResponseWriter, r *http.Request) {
-	if !ah.forbiddenUnlessAdmin(w, r) {
-		return
-	}
 	id := ah.parseID(w, chi.URLParam(r, "id"))
 	if id == 0 {
 		return
@@ -163,9 +174,6 @@ func (ah *AdminHandler) updateUserRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ah *AdminHandler) updateUserTeam(w http.ResponseWriter, r *http.Request) {
-	if !ah.forbiddenUnlessAdmin(w, r) {
-		return
-	}
 	id := ah.parseID(w, chi.URLParam(r, "id"))
 	if id == 0 {
 		return
@@ -192,9 +200,6 @@ func (ah *AdminHandler) updateUserTeam(w http.ResponseWriter, r *http.Request) {
 // ── Team administration ───────────────────────────────────────────────────────
 
 func (ah *AdminHandler) listTeams(w http.ResponseWriter, r *http.Request) {
-	if !ah.forbiddenUnlessAdmin(w, r) {
-		return
-	}
 	ts, err := ah.teamSvc.List(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -207,9 +212,6 @@ func (ah *AdminHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ah *AdminHandler) createTeam(w http.ResponseWriter, r *http.Request) {
-	if !ah.forbiddenUnlessAdmin(w, r) {
-		return
-	}
 	name := r.FormValue("name")
 	desc := r.FormValue("description")
 	if name == "" {
@@ -226,9 +228,6 @@ func (ah *AdminHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 // ── Role listing ──────────────────────────────────────────────────────────────
 
 func (ah *AdminHandler) listRoles(w http.ResponseWriter, r *http.Request) {
-	if !ah.forbiddenUnlessAdmin(w, r) {
-		return
-	}
 	roles, err := ah.userSvc.ListRoles(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
