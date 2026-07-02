@@ -70,17 +70,22 @@ func (ih *InventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	// Apply optional search and filter query params.
 	search := strings.ToLower(r.URL.Query().Get("search"))
-	filterTeam := r.URL.Query().Get("team_id")
+	filterTeamStr := r.URL.Query().Get("team_id")
 	filterStatus := r.URL.Query().Get("status")
 
-	if search != "" || filterTeam != "" || filterStatus != "" {
+	var filterTeamID int64
+	if filterTeamStr != "" {
+		filterTeamID, _ = strconv.ParseInt(filterTeamStr, 10, 64)
+	}
+
+	if search != "" || filterTeamID != 0 || filterStatus != "" {
 		filtered := items[:0]
 		for _, item := range items {
 			if search != "" && !strings.Contains(strings.ToLower(item.Name), search) &&
 				!strings.Contains(strings.ToLower(item.PackageName), search) {
 				continue
 			}
-			if filterTeam != "" && strconv.FormatInt(item.TeamID, 10) != filterTeam {
+			if filterTeamID != 0 && item.TeamID != filterTeamID {
 				continue
 			}
 			if filterStatus == "active" && !item.Active {
@@ -100,7 +105,7 @@ func (ih *InventoryHandler) list(w http.ResponseWriter, r *http.Request) {
 		"teams":        ts,
 		"session":      session,
 		"search":       r.URL.Query().Get("search"),
-		"filterTeam":   filterTeam,
+		"filterTeamID": filterTeamID,
 		"filterStatus": filterStatus,
 		"csrf":         csrf.Token(r),
 	})
@@ -266,7 +271,7 @@ func (ih *InventoryHandler) setActive(w http.ResponseWriter, r *http.Request, ac
 	}
 	action := audit.ActionInventoryDeactivated
 	if active {
-		action = audit.ActionInventoryUpdated
+		action = audit.ActionInventoryActivated
 	}
 	actorID := session.UserID
 	ih.auditSvc.Record(r.Context(), &actorID, action,

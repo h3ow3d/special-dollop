@@ -37,7 +37,7 @@
         <select name="team_id" class="border rounded p-2 w-full text-sm">
           <option value="">All Teams</option>
           {{range .teams}}
-          <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.filterTeam}}selected{{end}}>{{.Name}}</option>
+          <option value="{{.ID}}" {{if eq .ID $.filterTeamID}}selected{{end}}>{{.Name}}</option>
           {{end}}
         </select>
       </div>

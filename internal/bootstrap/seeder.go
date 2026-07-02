@@ -179,24 +179,27 @@ func (s *Seeder) Seed(ctx context.Context) error {
 
 	// Seed inventory items when the inventory service is available.
 	if s.inventorySvc != nil {
+		// Fetch all existing inventory items once and build an in-memory index
+		// by (team_id, name) to avoid N+1 queries during idempotency checks.
+		allItems, err := s.inventorySvc.List(ctx)
+		if err != nil {
+			return fmt.Errorf("seed inventory: list existing: %w", err)
+		}
+		type teamName struct {
+			teamID int64
+			name   string
+		}
+		existingIndex := make(map[teamName]bool, len(allItems))
+		for _, item := range allItems {
+			existingIndex[teamName{item.TeamID, item.Name}] = true
+		}
+
 		for _, spec := range BootstrapInventory {
 			team, ok := teamIndex[spec.TeamName]
 			if !ok {
 				return fmt.Errorf("seed inventory %q: team %q not found", spec.Name, spec.TeamName)
 			}
-			// Check idempotency: skip if an item with this name and team already exists.
-			existing, err := s.inventorySvc.ListByTeam(ctx, team.ID)
-			if err != nil {
-				return fmt.Errorf("seed inventory %q: check existing: %w", spec.Name, err)
-			}
-			found := false
-			for _, item := range existing {
-				if item.Name == spec.Name {
-					found = true
-					break
-				}
-			}
-			if found {
+			if existingIndex[teamName{team.ID, spec.Name}] {
 				continue
 			}
 			item := &inventory.InventoryItem{
@@ -211,6 +214,7 @@ func (s *Seeder) Seed(ctx context.Context) error {
 			if err := s.inventorySvc.Create(ctx, item); err != nil {
 				return fmt.Errorf("seed inventory %q: %w", spec.Name, err)
 			}
+			existingIndex[teamName{team.ID, spec.Name}] = true
 		}
 	}
 

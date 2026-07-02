@@ -94,9 +94,12 @@ const itemColumns = `
 	i.package_name, i.repository_url, i.active, i.created_at, i.updated_at,
 	COALESCE(t.name, '')`
 
-func scanItemWithTeam(row interface {
+// rowScanner abstracts sql.Row and sql.Rows so scanItemWithTeam can handle both.
+type rowScanner interface {
 	Scan(dest ...any) error
-}) (*InventoryItemWithTeam, error) {
+}
+
+func scanItemWithTeam(row rowScanner) (*InventoryItemWithTeam, error) {
 	item := &InventoryItemWithTeam{}
 	err := row.Scan(
 		&item.ID, &item.Name, &item.Description, &item.TeamID,

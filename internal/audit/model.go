@@ -19,6 +19,7 @@ const (
 
 	ActionInventoryCreated          Action = "inventory.created"
 	ActionInventoryUpdated          Action = "inventory.updated"
+	ActionInventoryActivated        Action = "inventory.activated"
 	ActionInventoryDeactivated      Action = "inventory.deactivated"
 	ActionInventoryOwnershipChanged Action = "inventory.ownership_changed"
 )
