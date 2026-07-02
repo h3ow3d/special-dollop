@@ -28,10 +28,24 @@ type User struct {
 	GitHubUsername string
 	DisplayName    string
 	Email          string
+	AvatarURL      string
 	Organisation   string   // primary GitHub organisation
 	TeamMembership []string // GitHub team slugs within the organisation
 	OIDCSubject    string   // e.g. "github:<username>"
 	GitHubToken    string   // OAuth access token; used for OCI registry operations
+}
+
+// UserSession carries authenticated user identity and RBAC state through the
+// request context. It is stored in the encrypted session cookie.
+type UserSession struct {
+	GitHubUser User      // GitHub identity; also used for attestation metadata
+	UserID     int64     // platform database user ID (0 when DB is not configured)
+	RoleID     int64     // 0 when DB is not configured
+	RoleSlug   string    // "administrator" | "assessor" | "reader" | ""
+	TeamID     *int64    // nil when no team is assigned
+	TeamName   string    // empty when no team is assigned
+	LoginAt    time.Time
+	Active     bool
 }
 
 // ArtefactInfo describes the target OCI artefact being assessed.

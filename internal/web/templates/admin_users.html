@@ -1,0 +1,92 @@
+{{define "admin_users.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>User Administration – CDSCAM</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <a href="/wizard" class="font-semibold">CDSCAM</a>
+    <nav class="flex gap-4 text-sm">
+      <a href="/admin/users" class="font-medium text-blue-600">Users</a>
+      <a href="/admin/teams" class="hover:text-blue-600">Teams</a>
+      <a href="/admin/roles" class="hover:text-blue-600">Roles</a>
+    </nav>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-6xl mx-auto p-8 space-y-6">
+    <h1 class="text-2xl font-semibold">User Administration</h1>
+    <div class="overflow-x-auto bg-white border rounded">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-100 text-left">
+          <tr>
+            <th class="px-4 py-2 font-medium">User</th>
+            <th class="px-4 py-2 font-medium">Email</th>
+            <th class="px-4 py-2 font-medium">Role</th>
+            <th class="px-4 py-2 font-medium">Team</th>
+            <th class="px-4 py-2 font-medium">Status</th>
+            <th class="px-4 py-2 font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {{range .users}}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-2">
+              <div class="font-medium">{{.DisplayName}}</div>
+              <div class="text-slate-500 text-xs">@{{.GitHubUsername}}</div>
+            </td>
+            <td class="px-4 py-2 text-slate-600">{{.Email}}</td>
+            <td class="px-4 py-2">
+              <form method="post" action="/admin/users/{{.ID}}/role" class="flex gap-1 items-center">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.csrf}}" />
+                <select name="role_id" class="text-xs border rounded px-1 py-0.5">
+                  {{range $.roles}}
+                  <option value="{{.ID}}" {{if eq .ID $.roleID}}selected{{end}}>{{.Name}}</option>
+                  {{end}}
+                </select>
+                <button type="submit" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded hover:bg-blue-200">Save</button>
+              </form>
+            </td>
+            <td class="px-4 py-2">
+              <form method="post" action="/admin/users/{{.ID}}/team" class="flex gap-1 items-center">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.csrf}}" />
+                <select name="team_id" class="text-xs border rounded px-1 py-0.5">
+                  <option value="0">— No team —</option>
+                  {{range $.teams}}
+                  <option value="{{.ID}}">{{.Name}}</option>
+                  {{end}}
+                </select>
+                <button type="submit" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded hover:bg-blue-200">Save</button>
+              </form>
+            </td>
+            <td class="px-4 py-2">
+              {{if .Active}}
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+              {{else}}
+                <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Inactive</span>
+              {{end}}
+            </td>
+            <td class="px-4 py-2 flex gap-2">
+              {{if .Active}}
+              <form method="post" action="/admin/users/{{.ID}}/deactivate">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.csrf}}" />
+                <button class="text-xs text-red-600 hover:underline">Deactivate</button>
+              </form>
+              {{else}}
+              <form method="post" action="/admin/users/{{.ID}}/activate">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$.csrf}}" />
+                <button class="text-xs text-green-600 hover:underline">Activate</button>
+              </form>
+              {{end}}
+            </td>
+          </tr>
+          {{else}}
+          <tr><td colspan="6" class="px-4 py-6 text-center text-slate-500">No users yet.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>{{end}}

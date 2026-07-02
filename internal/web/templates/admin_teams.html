@@ -1,0 +1,67 @@
+{{define "admin_teams.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Team Administration – CDSCAM</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white border-b px-6 py-3 flex justify-between items-center">
+    <a href="/wizard" class="font-semibold">CDSCAM</a>
+    <nav class="flex gap-4 text-sm">
+      <a href="/admin/users" class="hover:text-blue-600">Users</a>
+      <a href="/admin/teams" class="font-medium text-blue-600">Teams</a>
+      <a href="/admin/roles" class="hover:text-blue-600">Roles</a>
+    </nav>
+    {{if .user}}<span class="text-sm text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
+  </header>
+  <main class="max-w-4xl mx-auto p-8 space-y-6">
+    <h1 class="text-2xl font-semibold">Team Administration</h1>
+
+    <form method="post" action="/admin/teams" class="bg-white border rounded p-6 space-y-4">
+      <h2 class="font-medium">Create Team</h2>
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Name <span class="text-red-500">*</span></label>
+          <input name="name" required placeholder="e.g. Platform Team" class="border rounded p-2 w-full" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Description</label>
+          <input name="description" placeholder="Optional description" class="border rounded p-2 w-full" />
+        </div>
+      </div>
+      <button class="bg-blue-600 text-white px-4 py-2 rounded font-medium text-sm">Create Team</button>
+    </form>
+
+    <div class="bg-white border rounded overflow-hidden">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-100 text-left">
+          <tr>
+            <th class="px-4 py-2 font-medium">Name</th>
+            <th class="px-4 py-2 font-medium">Description</th>
+            <th class="px-4 py-2 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {{range .teams}}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-2 font-medium">{{.Name}}</td>
+            <td class="px-4 py-2 text-slate-600">{{.Description}}</td>
+            <td class="px-4 py-2">
+              {{if .Active}}
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+              {{else}}
+                <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Inactive</span>
+              {{end}}
+            </td>
+          </tr>
+          {{else}}
+          <tr><td colspan="3" class="px-4 py-6 text-center text-slate-500">No teams yet.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>{{end}}

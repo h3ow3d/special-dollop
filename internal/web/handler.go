@@ -1,21 +1,22 @@
 package web
 
 import (
-"embed"
-"encoding/json"
-"fmt"
-"html/template"
-"net/http"
-"strconv"
-"strings"
-"time"
+	"embed"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
-"github.com/go-chi/chi/v5"
-"github.com/go-chi/chi/v5/middleware"
-"github.com/gorilla/csrf"
-"github.com/h3ow3d/special-dollop/internal/app"
-"github.com/h3ow3d/special-dollop/internal/domain"
-"github.com/h3ow3d/special-dollop/internal/infra/security"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gorilla/csrf"
+	"github.com/h3ow3d/special-dollop/internal/app"
+	"github.com/h3ow3d/special-dollop/internal/audit"
+	"github.com/h3ow3d/special-dollop/internal/domain"
+	"github.com/h3ow3d/special-dollop/internal/infra/security"
 )
 
 //go:embed templates/*.html
@@ -23,18 +24,26 @@ var templateFS embed.FS
 
 // Handler wires HTTP routes to the assessment wizard service.
 type Handler struct {
-svc   *app.Service
-oauth *security.OAuthHandler
-tmpl  *template.Template
+	svc    *app.Service
+	oauth  *security.OAuthHandler
+	tmpl   *template.Template
+	admin  *AdminHandler // optional; nil when DB is not configured
 }
 
 // NewHandler creates a Handler, parsing all embedded templates.
 func NewHandler(svc *app.Service, oauth *security.OAuthHandler) (*Handler, error) {
-tmpl, err := template.New("").Funcs(templateFuncs()).ParseFS(templateFS, "templates/*.html")
-if err != nil {
-return nil, err
+	tmpl, err := template.New("").Funcs(templateFuncs()).ParseFS(templateFS, "templates/*.html")
+	if err != nil {
+		return nil, err
+	}
+	return &Handler{svc: svc, oauth: oauth, tmpl: tmpl}, nil
 }
-return &Handler{svc: svc, oauth: oauth, tmpl: tmpl}, nil
+
+// WithAdminHandler attaches the AdminHandler and returns the receiver for
+// fluent chaining.
+func (h *Handler) WithAdminHandler(admin *AdminHandler) *Handler {
+	h.admin = admin
+	return h
 }
 
 func templateFuncs() template.FuncMap {
@@ -138,6 +147,11 @@ pr.Post("/oci/resolve", h.ociResolve)
 pr.Get("/wizard/{id}/download/envelope", h.downloadEnvelope)
 pr.Get("/wizard/{id}/download/statement", h.downloadStatement)
 pr.Get("/wizard/{id}/download/report", h.downloadReport)
+
+// Admin routes (only registered when a DB-backed AdminHandler is wired up)
+if h.admin != nil {
+h.admin.RegisterRoutes(pr)
+}
 })
 
 return r
@@ -155,6 +169,13 @@ h.render(w, r, "index.html", nil)
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+	// Record logout audit event when the admin handler is wired (DB available).
+	if h.admin != nil {
+		if session, ok := security.SessionFromContext(r.Context()); ok && session.UserID != 0 {
+			id := session.UserID
+			h.admin.auditSvc.Record(r.Context(), &id, audit.ActionLogout, nil, r.RemoteAddr)
+		}
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "clph_session",
 		Value:    "",
