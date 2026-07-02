@@ -38,8 +38,6 @@ func (s *Service) Create(ctx context.Context, item *InventoryItem) error {
 		"inventory_name", item.Name,
 		"inventory_team_id", item.TeamID,
 	)
-	// Evidence refresh is best-effort; errors are logged but not propagated.
-	_ = s.refreshEvidence(ctx, item)
 	return nil
 }
 
@@ -65,8 +63,6 @@ func (s *Service) Update(ctx context.Context, item *InventoryItem) error {
 		"inventory_item_id", item.ID,
 		"inventory_name", item.Name,
 	)
-	// Evidence refresh is best-effort; errors are logged but not propagated.
-	_ = s.refreshEvidence(ctx, item)
 	return nil
 }
 
@@ -90,9 +86,8 @@ func (s *Service) CountByTeam(ctx context.Context) (map[int64]int, error) {
 	return s.repo.CountByTeam(ctx)
 }
 
-// RefreshEvidence re-runs OCI discovery for the specified inventory item.
-// Unlike the best-effort refresh inside Create/Update, this method propagates
-// errors so the HTTP handler can surface them to the user.
+// RefreshEvidence re-runs OCI discovery for the specified inventory item and
+// propagates errors so the HTTP handler can surface them to the user.
 func (s *Service) RefreshEvidence(ctx context.Context, id int64) error {
 	user, role, team := infrolog.UserContextFields(ctx)
 	item, err := s.repo.GetByID(ctx, id)

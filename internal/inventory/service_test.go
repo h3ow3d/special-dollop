@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/h3ow3d/special-dollop/internal/evidence"
 )
 
 // ── in-memory test repository ─────────────────────────────────────────────────
@@ -88,6 +90,66 @@ func (r *memRepo) CountByTeam(_ context.Context) (map[int64]int, error) {
 	return counts, nil
 }
 
+type evidenceMemRepo struct {
+	nextID int64
+}
+
+func (r *evidenceMemRepo) UpsertDigest(_ context.Context, d *evidence.ArtifactDigest) error {
+	if r.nextID == 0 {
+		r.nextID = 1
+	}
+	if d.ID == 0 {
+		d.ID = r.nextID
+		r.nextID++
+	}
+	return nil
+}
+
+func (r *evidenceMemRepo) UpdateDigestStatus(_ context.Context, _ int64, _ evidence.DiscoveryStatus, _ string, _ time.Time) error {
+	return nil
+}
+
+func (r *evidenceMemRepo) GetDigestByID(_ context.Context, _ int64) (*evidence.ArtifactDigest, error) {
+	return nil, nil
+}
+
+func (r *evidenceMemRepo) ListDigestsByItem(_ context.Context, _ int64) ([]*evidence.ArtifactDigest, error) {
+	return nil, nil
+}
+
+func (r *evidenceMemRepo) UpsertTag(_ context.Context, _ *evidence.RepositoryTag) error {
+	return nil
+}
+
+func (r *evidenceMemRepo) ListTagsByItem(_ context.Context, _ int64) ([]*evidence.RepositoryTag, error) {
+	return nil, nil
+}
+
+func (r *evidenceMemRepo) ReplaceEvidence(_ context.Context, _ int64, _ []*evidence.DigestEvidence) error {
+	return nil
+}
+
+func (r *evidenceMemRepo) GetSummaries(_ context.Context) (map[int64]*evidence.RepositorySummary, error) {
+	return nil, nil
+}
+
+type countingDiscoverer struct {
+	listTagsCalls int
+}
+
+func (d *countingDiscoverer) ListTags(_ context.Context, _, _ string) ([]string, error) {
+	d.listTagsCalls++
+	return []string{"latest"}, nil
+}
+
+func (d *countingDiscoverer) ResolveTag(_ context.Context, _, _, tag string) (*evidence.TagResolution, error) {
+	return &evidence.TagResolution{Tag: tag, Digest: "sha256:abc"}, nil
+}
+
+func (d *countingDiscoverer) ListReferrers(_ context.Context, _, _, _ string) ([]*evidence.DigestEvidence, []string, error) {
+	return nil, nil, nil
+}
+
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 func TestCreate(t *testing.T) {
@@ -105,6 +167,26 @@ func TestCreate(t *testing.T) {
 	}
 	if !item.Active {
 		t.Fatal("expected item to be active after Create")
+	}
+}
+
+func TestCreateDoesNotAutoRefreshEvidence(t *testing.T) {
+	repo := newMemRepo()
+	disc := &countingDiscoverer{}
+	evidenceSvc := evidence.NewService(&evidenceMemRepo{}, disc)
+	svc := NewService(repo, evidenceSvc)
+	item := &InventoryItem{
+		Name:        "proverjay",
+		TeamID:      1,
+		Registry:    "ghcr.io",
+		PackageName: "h3ow3d/proverjay",
+	}
+
+	if err := svc.Create(context.Background(), item); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if disc.listTagsCalls != 0 {
+		t.Fatalf("expected no discovery on create, got %d tag enumerations", disc.listTagsCalls)
 	}
 }
 
@@ -144,6 +226,49 @@ func TestUpdate(t *testing.T) {
 	got, _ := svc.GetByID(context.Background(), item.ID)
 	if got.Description != "Certificate management tooling" {
 		t.Fatalf("expected updated description, got %q", got.Description)
+	}
+}
+
+func TestUpdateDoesNotAutoRefreshEvidence(t *testing.T) {
+	repo := newMemRepo()
+	disc := &countingDiscoverer{}
+	evidenceSvc := evidence.NewService(&evidenceMemRepo{}, disc)
+	svc := NewService(repo, evidenceSvc)
+	item := &InventoryItem{
+		Name:        "cert-manager",
+		TeamID:      2,
+		Registry:    "ghcr.io",
+		PackageName: "org/cert-manager",
+	}
+	_ = svc.Create(context.Background(), item)
+
+	item.Description = "updated"
+	if err := svc.Update(context.Background(), item); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if disc.listTagsCalls != 0 {
+		t.Fatalf("expected no discovery on update, got %d tag enumerations", disc.listTagsCalls)
+	}
+}
+
+func TestRefreshEvidenceRunsDiscovery(t *testing.T) {
+	repo := newMemRepo()
+	disc := &countingDiscoverer{}
+	evidenceSvc := evidence.NewService(&evidenceMemRepo{}, disc)
+	svc := NewService(repo, evidenceSvc)
+	item := &InventoryItem{
+		Name:        "proverjay",
+		TeamID:      1,
+		Registry:    "ghcr.io",
+		PackageName: "h3ow3d/proverjay",
+	}
+	_ = svc.Create(context.Background(), item)
+
+	if err := svc.RefreshEvidence(context.Background(), item.ID); err != nil {
+		t.Fatalf("RefreshEvidence: %v", err)
+	}
+	if disc.listTagsCalls != 1 {
+		t.Fatalf("expected 1 discovery run, got %d", disc.listTagsCalls)
 	}
 }
 
