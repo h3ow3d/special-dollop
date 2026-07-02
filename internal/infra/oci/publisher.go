@@ -70,6 +70,8 @@ func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envel
 	repo.Client = &auth.Client{
 		Client: retry.DefaultClient,
 		Cache:  auth.NewCache(),
+		// The publisher resolves and pushes within a single target repository, so
+		// only the resolved target registry should ever need credentials here.
 		Credential: func(_ context.Context, hostport string) (auth.Credential, error) {
 			if hostport != targetRef.Registry || p.username == "" || p.password == "" {
 				return auth.EmptyCredential, nil
@@ -116,7 +118,7 @@ func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envel
 }
 
 func (p *Publisher) validateCredentials() error {
-	if (p.username == "") != (p.password == "") {
+	if (p.username == "" && p.password != "") || (p.username != "" && p.password == "") {
 		return errors.New("oci credentials must include both OCI_USERNAME and OCI_PASSWORD")
 	}
 	return nil

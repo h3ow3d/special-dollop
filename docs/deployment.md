@@ -58,8 +58,8 @@ No database service is required. No local registry is required. The application 
 | `CSRF_AUTH_KEY` | Yes | 32-byte key for CSRF token signing (hex or raw) |
 | `SESSION_SECRET` | Yes | 32-byte key for session cookie signing |
 | `SECURE_COOKIES` | No | Set to `"true"` in production (HTTPS). Default: `"false"` |
-| `OCI_USERNAME` | Usually | Registry username for attestation publication. Required for authenticated registries such as GHCR. |
-| `OCI_PASSWORD` | Usually | Registry password or token for attestation publication. For GHCR, use a token with package write access. |
+| `OCI_USERNAME` | Conditional | Registry username for attestation publication. Required for authenticated registries such as GHCR. |
+| `OCI_PASSWORD` | Conditional | Registry password or token for attestation publication. For GHCR, use a token with package write access. |
 | `OCI_PLAIN_HTTP` | No | Set to `"true"` only for local non-TLS registries. Default: `"false"` |
 | `PORT` | No | Listen port. Default: `8080` |
 
