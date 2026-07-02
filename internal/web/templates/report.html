@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>Assessment Report</title><script src="https://cdn.tailwindcss.com"></script></head>
+<body class="p-8 bg-white text-slate-900">
+<h1 class="text-2xl font-semibold mb-2">Assessment Report: {{ .assessment.AssessmentID }}</h1>
+<ul class="space-y-1 text-sm">
+  <li>Status: {{ .assessment.Status }}</li>
+  <li>Artefact: {{ .assessment.ArtefactName }} ({{ .assessment.ArtefactType }})</li>
+  <li>Digest: {{ .assessment.ArtefactDigest }}</li>
+  <li>Registry: {{ .assessment.ArtefactRegistry }}</li>
+  <li>Repository: {{ .assessment.RepositoryURL }}</li>
+  <li>Outcome: {{ .assessment.Outcome }}</li>
+  <li>Pattern: {{ .assessment.Pattern }}</li>
+  <li>Rationale: {{ .assessment.OutcomeRationale }}</li>
+  <li>Required Controls: {{ .assessment.RequiredControls }}</li>
+</ul>
+</body>
+</html>
