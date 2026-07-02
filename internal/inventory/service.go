@@ -3,8 +3,10 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/h3ow3d/special-dollop/internal/evidence"
+	"github.com/h3ow3d/special-dollop/internal/infra/security"
 )
 
 // Service provides inventory management operations.
@@ -23,8 +25,18 @@ func NewService(repo Repository, evidenceSvc *evidence.Service) *Service {
 func (s *Service) Create(ctx context.Context, item *InventoryItem) error {
 	item.Active = true
 	if err := s.repo.Create(ctx, item); err != nil {
+		logError(ctx, "inventory.create", item.ID, err)
 		return fmt.Errorf("create inventory item: %w", err)
 	}
+	slog.Info("inventory item created",
+		"operation", "inventory.create",
+		"user", usernameFromContext(ctx),
+		"role", roleFromContext(ctx),
+		"team", teamFromContext(ctx),
+		"inventory_item_id", item.ID,
+		"inventory_name", item.Name,
+		"inventory_team_id", item.TeamID,
+	)
 	// Evidence refresh is best-effort; errors are logged but not propagated.
 	_ = s.refreshEvidence(ctx, item)
 	return nil
@@ -40,8 +52,17 @@ func (s *Service) GetByID(ctx context.Context, id int64) (*InventoryItem, error)
 // are updated; Active and TeamID are not changed by this method.
 func (s *Service) Update(ctx context.Context, item *InventoryItem) error {
 	if err := s.repo.Update(ctx, item); err != nil {
+		logError(ctx, "inventory.update", item.ID, err)
 		return fmt.Errorf("update inventory item: %w", err)
 	}
+	slog.Info("inventory item updated",
+		"operation", "inventory.update",
+		"user", usernameFromContext(ctx),
+		"role", roleFromContext(ctx),
+		"team", teamFromContext(ctx),
+		"inventory_item_id", item.ID,
+		"inventory_name", item.Name,
+	)
 	// Evidence refresh is best-effort; errors are logged but not propagated.
 	_ = s.refreshEvidence(ctx, item)
 	return nil
@@ -73,8 +94,16 @@ func (s *Service) CountByTeam(ctx context.Context) (map[int64]int, error) {
 func (s *Service) RefreshEvidence(ctx context.Context, id int64) error {
 	item, err := s.repo.GetByID(ctx, id)
 	if err != nil {
+		logError(ctx, "inventory.refresh", id, err)
 		return err
 	}
+	slog.Info("inventory refresh requested",
+		"operation", "inventory.refresh",
+		"user", usernameFromContext(ctx),
+		"role", roleFromContext(ctx),
+		"team", teamFromContext(ctx),
+		"inventory_item_id", id,
+	)
 	return s.refreshEvidence(ctx, item)
 }
 
@@ -116,10 +145,52 @@ func (s *Service) refreshEvidence(ctx context.Context, item *InventoryItem) erro
 	if s.evidenceSvc == nil || item == nil {
 		return nil
 	}
-	return s.evidenceSvc.RefreshRepository(ctx, evidence.DiscoveryTarget{
+	if err := s.evidenceSvc.RefreshRepository(ctx, evidence.DiscoveryTarget{
 		InventoryItemID: item.ID,
 		Registry:        item.Registry,
 		Repository:      item.PackageName,
-	})
+	}); err != nil {
+		logError(ctx, "inventory.refresh", item.ID, err)
+		return err
+	}
+	slog.Info("inventory refresh complete",
+		"operation", "inventory.refresh",
+		"user", usernameFromContext(ctx),
+		"role", roleFromContext(ctx),
+		"team", teamFromContext(ctx),
+		"inventory_item_id", item.ID,
+	)
+	return nil
 }
 
+func logError(ctx context.Context, operation string, inventoryItemID int64, err error) {
+	slog.Error("unexpected inventory error",
+		"operation", operation,
+		"user", usernameFromContext(ctx),
+		"role", roleFromContext(ctx),
+		"team", teamFromContext(ctx),
+		"inventory_item_id", inventoryItemID,
+		"error", err.Error(),
+	)
+}
+
+func usernameFromContext(ctx context.Context) string {
+	if session, ok := security.SessionFromContext(ctx); ok {
+		return session.GitHubUser.GitHubUsername
+	}
+	return ""
+}
+
+func roleFromContext(ctx context.Context) string {
+	if session, ok := security.SessionFromContext(ctx); ok {
+		return session.EffectiveRoleSlug()
+	}
+	return ""
+}
+
+func teamFromContext(ctx context.Context) string {
+	if session, ok := security.SessionFromContext(ctx); ok {
+		return session.EffectiveTeamName()
+	}
+	return ""
+}

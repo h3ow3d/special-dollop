@@ -2,7 +2,7 @@ package audit
 
 import (
 	"context"
-	"log"
+	"log/slog"
 )
 
 // Service records audit events.
@@ -23,6 +23,11 @@ func (s *Service) Record(ctx context.Context, userID *int64, action Action, deta
 		IPAddress: ip,
 	}
 	if err := s.repo.Record(ctx, e); err != nil {
-		log.Printf("audit: failed to record %s for user %v: %v", action, userID, err)
+		slog.Warn("audit record failed",
+			"operation", "audit.record",
+			"user_id", userID,
+			"action", action,
+			"error", err.Error(),
+		)
 	}
 }

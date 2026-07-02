@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/h3ow3d/special-dollop/internal/app"
 	"github.com/h3ow3d/special-dollop/internal/audit"
 	"github.com/h3ow3d/special-dollop/internal/domain"
+	"github.com/h3ow3d/special-dollop/internal/infra/logging"
 	"github.com/h3ow3d/special-dollop/internal/infra/security"
 	"github.com/h3ow3d/special-dollop/internal/inventory"
 	"github.com/h3ow3d/special-dollop/internal/rbac"
@@ -140,10 +142,11 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(security.SecurityHeaders)
 	r.Use(h.oauth.AuthMiddleware)
+	r.Use(logging.RequestLogger)
+	r.Use(logging.PanicRecovery)
 	if !h.oauth.SecureCookies() {
 		r.Use(plaintextHTTPMiddleware)
 	}
@@ -712,6 +715,13 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, name string, da
 	data["showDevPanel"] = h.devMode
 	data["requestURI"] = r.URL.RequestURI()
 	if err := h.tmpl.ExecuteTemplate(w, name, data); err != nil {
+		session, _ := security.SessionFromContext(r.Context())
+		slog.Error("template rendering failed",
+			"operation", "web.render",
+			"path", r.URL.Path,
+			"user", session.GitHubUser.GitHubUsername,
+			"error", err.Error(),
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
