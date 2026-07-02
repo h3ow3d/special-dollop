@@ -63,40 +63,38 @@ func main() {
 		log.Fatalf("handler: %v", err)
 	}
 
-	// PostgreSQL – optional; when DATABASE_URL is set, RBAC and audit are enabled.
-	if dsn := getenv("DATABASE_URL", ""); dsn != "" {
-		db, err := database.Open(dsn)
-		if err != nil {
-			log.Fatalf("database: %v", err)
-		}
-		if err := database.RunMigrations(db); err != nil {
-			log.Fatalf("migrations: %v", err)
-		}
-		log.Println("database: migrations applied")
-
-		// Repositories
-		userRepo := users.NewUserRepository(db)
-		roleRepo := users.NewRoleRepository(db)
-		teamRepo := teams.NewRepository(db)
-		auditRepo := audit.NewRepository(db)
-
-		// Services
-		auditSvc := audit.NewService(auditRepo)
-		userSvc := users.NewService(userRepo, roleRepo)
-		teamSvc := teams.NewService(teamRepo)
-
-		// Auth enricher: upserts DB user after GitHub OAuth.
-		authSvc := auth.NewService(userSvc, teamRepo, auditSvc)
-		oauthHandler.WithEnricher(authSvc)
-
-		// Admin handler
-		adminHandler := web.NewAdminHandler(h, userSvc, teamSvc, auditSvc)
-		h.WithAdminHandler(adminHandler)
-
-		log.Println("database: RBAC and audit enabled")
-	} else {
-		log.Println("WARNING: DATABASE_URL not set – running without RBAC (GitHub OAuth only)")
+	// PostgreSQL – required; provided by the Docker Compose stack.
+	dsn := getenv("DATABASE_URL", "")
+	if dsn == "" {
+		log.Fatalf("DATABASE_URL is required – start the application via Docker Compose so the database is available")
 	}
+	db, err := database.Open(dsn)
+	if err != nil {
+		log.Fatalf("database: %v", err)
+	}
+	if err := database.RunMigrations(db); err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+	log.Println("database: migrations applied")
+
+	// Repositories
+	userRepo := users.NewUserRepository(db)
+	roleRepo := users.NewRoleRepository(db)
+	teamRepo := teams.NewRepository(db)
+	auditRepo := audit.NewRepository(db)
+
+	// Services
+	auditSvc := audit.NewService(auditRepo)
+	userSvc := users.NewService(userRepo, roleRepo)
+	teamSvc := teams.NewService(teamRepo)
+
+	// Auth enricher: upserts DB user after GitHub OAuth.
+	authSvc := auth.NewService(userSvc, teamRepo, auditSvc)
+	oauthHandler.WithEnricher(authSvc)
+
+	// Admin handler
+	adminHandler := web.NewAdminHandler(h, userSvc, teamSvc, auditSvc)
+	h.WithAdminHandler(adminHandler)
 
 	csrfKey := []byte(padTo32(getenv("CSRF_AUTH_KEY", "replace-me-with-32-byte-csrf-secret")))
 	addr := getenv("HTTP_ADDR", ":8080")
