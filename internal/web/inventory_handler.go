@@ -149,37 +149,7 @@ func (ih *InventoryHandler) detail(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	owningTeam, _ := ih.teamSvc.GetByID(r.Context(), item.TeamID)
-
-	canEdit := false
-	if session.EffectiveRoleSlug() == string(rbac.RoleAdministrator) {
-		canEdit = true
-	} else if session.EffectiveRoleSlug() == string(rbac.RoleAssessor) &&
-		session.TeamID != nil && *session.TeamID == item.TeamID {
-		canEdit = true
-	}
-
-	digests, err := ih.inventorySvc.GetArtifactDigests(r.Context(), item.ID)
-	if err != nil {
-		http.Error(w, "failed to load artifact digests: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	tags, err := ih.inventorySvc.GetRepositoryTags(r.Context(), item.ID)
-	if err != nil {
-		http.Error(w, "failed to load repository tags: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	ih.tmpl.render(w, r, "inventory_detail.html", map[string]any{
-		"item":    item,
-		"team":    owningTeam,
-		"canEdit": canEdit,
-		"session": session,
-		"csrf":    csrf.Token(r),
-		"digests": digests,
-		"tags":    tags,
-	})
+	ih.renderDetailPage(w, r, item, session, http.StatusOK, "")
 }
 
 // ── Digest Detail ─────────────────────────────────────────────────────────────
@@ -349,7 +319,7 @@ func (ih *InventoryHandler) refreshDiscovery(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := ih.inventorySvc.RefreshEvidence(r.Context(), item.ID); err != nil {
-		http.Error(w, fmt.Sprintf("refresh discovery: %v", err), http.StatusInternalServerError)
+		ih.renderDetailPage(w, r, item, session, http.StatusInternalServerError, fmt.Sprintf("refresh discovery: %v", err))
 		return
 	}
 	actorID := session.UserID
@@ -416,6 +386,35 @@ func (ih *InventoryHandler) loadItem(w http.ResponseWriter, r *http.Request) (*i
 		item.TeamName = t.Name
 	}
 	return item, true
+}
+
+func (ih *InventoryHandler) renderDetailPage(w http.ResponseWriter, r *http.Request, item *inventory.InventoryItemWithTeam, session domain.UserSession, statusCode int, discoveryError string) {
+	owningTeam, _ := ih.teamSvc.GetByID(r.Context(), item.TeamID)
+
+	digests, err := ih.inventorySvc.GetArtifactDigests(r.Context(), item.ID)
+	if err != nil {
+		http.Error(w, "failed to load artifact digests: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	tags, err := ih.inventorySvc.GetRepositoryTags(r.Context(), item.ID)
+	if err != nil {
+		http.Error(w, "failed to load repository tags: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if statusCode != http.StatusOK {
+		w.WriteHeader(statusCode)
+	}
+	ih.tmpl.render(w, r, "inventory_detail.html", map[string]any{
+		"item":           item,
+		"team":           owningTeam,
+		"canEdit":        ih.canModify(session, item.TeamID),
+		"session":        session,
+		"csrf":           csrf.Token(r),
+		"digests":        digests,
+		"tags":           tags,
+		"discoveryError": discoveryError,
+	})
 }
 
 // canModify returns true if the session user may modify an inventory item

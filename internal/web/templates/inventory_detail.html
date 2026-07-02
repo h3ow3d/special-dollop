@@ -103,13 +103,20 @@
     {{/* ── Discovery Refresh ────────────────────────────────────────────── */}}
     {{if .canEdit}}
     <div class="flex justify-end">
-      <form method="post" action="/inventory/{{.item.ID}}/discovery/refresh" class="text-right space-y-2">
-        <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
-        <p class="text-xs text-slate-500">Discovery runs only when manually started by an authorized user.</p>
-        <button class="border border-blue-300 text-blue-700 px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-50">
-          Refresh Discovery
-        </button>
-      </form>
+      <div class="text-right space-y-2">
+        {{if .discoveryError}}
+        <div class="max-w-2xl bg-red-50 border border-red-200 rounded p-3 text-sm text-red-900 text-left">
+          {{.discoveryError}}
+        </div>
+        {{end}}
+        <form method="post" action="/inventory/{{.item.ID}}/discovery/refresh" class="space-y-2">
+          <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+          <p class="text-xs text-slate-500">Discovery runs only when manually started by an authorized user.</p>
+          <button class="border border-blue-300 text-blue-700 px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-50">
+            Refresh Discovery
+          </button>
+        </form>
+      </div>
     </div>
     {{end}}
 
