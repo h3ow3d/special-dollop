@@ -145,8 +145,8 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(security.SecurityHeaders)
 	r.Use(h.oauth.AuthMiddleware)
-	r.Use(logging.PanicRecovery)
 	r.Use(logging.RequestLogger)
+	r.Use(logging.PanicRecovery)
 	if !h.oauth.SecureCookies() {
 		r.Use(plaintextHTTPMiddleware)
 	}
