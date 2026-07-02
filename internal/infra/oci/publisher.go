@@ -49,11 +49,26 @@ func NewPublisher(cfg PublisherConfig) *Publisher {
 
 // Publish attaches the DSSE envelope to the referenced OCI artefact and returns
 // the published attestation manifest digest reference.
-func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envelope []byte) (string, error) {
+//
+// username and password are per-call credentials that take precedence over any
+// static credentials configured on the Publisher. If both are empty the
+// Publisher falls back to its configured OCI_USERNAME / OCI_PASSWORD values.
+func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envelope []byte, username, password string) (string, error) {
 	if len(envelope) == 0 {
 		return "", errors.New("attestation envelope is required")
 	}
-	if err := p.validateCredentials(); err != nil {
+
+	// Resolve effective credentials: per-call values take precedence over the
+	// static config. The fallback only applies when both per-call values are
+	// absent; a partial per-call pair (one empty, one non-empty) is rejected by
+	// validateCredentialPair below.
+	effectiveUsername := username
+	effectivePassword := password
+	if effectiveUsername == "" && effectivePassword == "" {
+		effectiveUsername = p.username
+		effectivePassword = p.password
+	}
+	if err := validateCredentialPair(effectiveUsername, effectivePassword); err != nil {
 		return "", err
 	}
 
@@ -73,12 +88,12 @@ func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envel
 		// The publisher resolves and pushes within a single target repository, so
 		// only the resolved target registry should ever need credentials here.
 		Credential: func(_ context.Context, hostport string) (auth.Credential, error) {
-			if p.username == "" || p.password == "" || hostport != targetRef.Registry {
+			if effectiveUsername == "" || effectivePassword == "" || hostport != targetRef.Registry {
 				return auth.EmptyCredential, nil
 			}
 			return auth.Credential{
-				Username: p.username,
-				Password: p.password,
+				Username: effectiveUsername,
+				Password: effectivePassword,
 			}, nil
 		},
 	}
@@ -117,9 +132,9 @@ func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envel
 	return fmt.Sprintf("%s/%s@%s", targetRef.Registry, targetRef.Repository, manifestDesc.Digest.String()), nil
 }
 
-func (p *Publisher) validateCredentials() error {
-	if (p.username == "" && p.password != "") || (p.username != "" && p.password == "") {
-		return errors.New("oci credentials must include both OCI_USERNAME and OCI_PASSWORD")
+func validateCredentialPair(username, password string) error {
+	if (username == "" && password != "") || (username != "" && password == "") {
+		return errors.New("oci credentials must include both username and password")
 	}
 	return nil
 }

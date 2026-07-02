@@ -26,7 +26,7 @@ return "dGVzdHNpZw==", nil
 
 type fakePublisher struct{}
 
-func (f *fakePublisher) Publish(_ context.Context, _, _ string, _ []byte) (string, error) {
+func (f *fakePublisher) Publish(_ context.Context, _, _ string, _ []byte, _, _ string) (string, error) {
 return "registry/ref@sha256:abc", nil
 }
 

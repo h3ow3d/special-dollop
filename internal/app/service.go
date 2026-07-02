@@ -26,7 +26,7 @@ Sign(ctx context.Context, payload []byte, user domain.User) (signature string, e
 
 // OCIPublisher attaches a signed attestation envelope to an OCI artefact.
 type OCIPublisher interface {
-Publish(ctx context.Context, registry, ref string, envelope []byte) (ociRef string, err error)
+Publish(ctx context.Context, registry, ref string, envelope []byte, username, password string) (ociRef string, err error)
 }
 
 // ErrNotFound is returned when the requested assessment session does not exist.
@@ -177,7 +177,7 @@ return "", ErrNotFound
 if state.Attestation == nil {
 return "", errors.New("attestation must be generated and signed before publishing")
 }
-ociRef, err := s.publisher.Publish(ctx, registry, ref, state.Attestation.EnvelopeJSON)
+ociRef, err := s.publisher.Publish(ctx, registry, ref, state.Attestation.EnvelopeJSON, state.User.GitHubUsername, state.User.GitHubToken)
 if err != nil {
 return "", fmt.Errorf("publish attestation: %w", err)
 }
