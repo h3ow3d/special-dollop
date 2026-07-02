@@ -199,7 +199,7 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "session encode failed", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/wizard", http.StatusFound)
+	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }
 
 // exchangeCode exchanges an OAuth2 code for a GitHub access token.

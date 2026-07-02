@@ -1,21 +1,45 @@
 {{define "auth_header.html"}}<header class="bg-white border-b px-6 py-3 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
   <div class="flex items-center gap-6">
-    <a href="/wizard" class="font-semibold">CDSCAM</a>
+    <a href="/dashboard" class="font-semibold">CDSCAM</a>
     <nav class="flex flex-wrap items-center gap-4 text-sm">
-      <a href="/wizard" class="hover:text-blue-600">Dashboard</a>
-      <a href="/oci/discover" class="hover:text-blue-600">Inventory</a>
+      <a href="/dashboard" class="hover:text-blue-600">Dashboard</a>
+      {{if or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor")}}
+      <a href="/wizard/new" class="hover:text-blue-600">Assessments</a>
+      {{end}}
       {{if eq .session.EffectiveRoleSlug "administrator"}}
-      <a href="/admin/users" class="hover:text-blue-600">Users</a>
-      <a href="/admin/teams" class="hover:text-blue-600">Teams</a>
+      <div class="relative group">
+        <button aria-haspopup="true" class="hover:text-blue-600 flex items-center gap-1">Administration <span class="text-xs" aria-hidden="true">▾</span></button>
+        <div class="absolute left-0 top-full hidden group-hover:block bg-white border rounded shadow-lg z-10 min-w-[160px] py-1" role="menu">
+          <a href="/admin/users" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Users</a>
+          <a href="/admin/teams" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Teams</a>
+          <a href="/admin/roles" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Roles</a>
+        </div>
+      </div>
       {{end}}
     </nav>
   </div>
-  <div class="flex items-center gap-4 text-sm">
-    {{if .user}}<span class="text-slate-500">{{.user.GitHubUsername}}</span>{{end}}
-    <form method="post" action="/auth/logout">
-      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
-      <button class="text-slate-700 hover:text-blue-600">Logout</button>
-    </form>
+  <div class="relative group flex items-center text-sm">
+    {{if .user}}
+    <button aria-haspopup="true" aria-label="User menu for @{{.user.GitHubUsername}}" class="flex items-center gap-2 hover:text-blue-600">
+      {{if .user.AvatarURL}}<img src="{{.user.AvatarURL}}" alt="avatar" class="w-6 h-6 rounded-full" />{{end}}
+      <span>@{{.user.GitHubUsername}}</span>
+      {{if .session.EffectiveRoleSlug}}<span class="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{{roleLabel .session.EffectiveRoleSlug}}</span>{{end}}
+      <span class="text-xs" aria-hidden="true">▾</span>
+    </button>
+    <div class="absolute right-0 top-full hidden group-hover:block bg-white border rounded shadow-lg z-10 min-w-[200px] py-1" role="menu">
+      <div class="px-4 py-2 border-b">
+        <p class="font-medium text-sm">@{{.user.GitHubUsername}}</p>
+        <p class="text-xs text-slate-500">{{if .session.TeamName}}{{.session.TeamName}}{{else}}No team{{end}} · {{roleLabel .session.EffectiveRoleSlug}}</p>
+      </div>
+      <a href="/dashboard" class="block px-4 py-2 text-sm hover:bg-slate-50" role="menuitem">Dashboard</a>
+      <form method="post" action="/auth/logout" class="block">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+        <button class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 text-slate-700" role="menuitem">Sign out</button>
+      </form>
+    </div>
+    {{else}}
+    <a href="/auth/login" class="hover:text-blue-600">Sign in</a>
+    {{end}}
   </div>
 </header>{{end}}
 

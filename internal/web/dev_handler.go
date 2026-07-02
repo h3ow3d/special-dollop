@@ -67,7 +67,7 @@ func devReturnTo(session domain.UserSession) string {
 	if target := sanitizeReturnTarget(session.LastVisitedPath); target != "" {
 		return target
 	}
-	return "/wizard"
+	return "/dashboard"
 }
 
 func sanitizeReturnTarget(v string) string {
@@ -104,7 +104,8 @@ func sanitizeReturnTarget(v string) string {
 
 func hasAllowedDevReturnPrefix(v string) bool {
 	switch {
-	case strings.HasPrefix(v, "/wizard"),
+	case strings.HasPrefix(v, "/dashboard"),
+		strings.HasPrefix(v, "/wizard"),
 		strings.HasPrefix(v, "/admin"),
 		strings.HasPrefix(v, "/oci"),
 		v == "/":

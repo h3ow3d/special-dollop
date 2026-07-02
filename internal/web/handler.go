@@ -136,13 +136,15 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 	r.Get("/auth/logout", h.logout)
 	r.Post("/auth/logout", h.logout)
 
-	// Protected wizard routes
+	// Protected routes
 	r.Group(func(pr chi.Router) {
 		pr.Use(security.RequireAuth)
 		pr.Use(rbac.RequireRole(rbac.RoleAdministrator, rbac.RoleAssessor, rbac.RoleReader))
 
+		pr.Get("/dashboard", h.dashboard)
+
 		pr.Get("/wizard", func(w http.ResponseWriter, r *http.Request) {
-			h.homeAuthenticated(w, r)
+			http.Redirect(w, r, "/dashboard", http.StatusFound)
 		})
 		pr.Get("/wizard/new", h.wizardStart)
 
@@ -197,16 +199,14 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	user, ok := security.UserFromContext(r.Context())
 	if ok && user.GitHubUsername != "" {
-		http.Redirect(w, r, "/wizard", http.StatusFound)
+		http.Redirect(w, r, "/dashboard", http.StatusFound)
 		return
 	}
 	h.render(w, r, "index.html", nil)
 }
 
-func (h *Handler) homeAuthenticated(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, "wizard_artefact.html", map[string]any{
-		"csrf": csrf.Token(r),
-	})
+func (h *Handler) dashboard(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, "dashboard.html", nil)
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
