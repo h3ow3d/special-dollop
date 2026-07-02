@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/h3ow3d/special-dollop/internal/audit"
+	"github.com/h3ow3d/special-dollop/internal/domain"
 	"github.com/h3ow3d/special-dollop/internal/infra/security"
 	"github.com/h3ow3d/special-dollop/internal/users"
 )
@@ -50,7 +51,7 @@ func (h *Handler) impersonateRole(w http.ResponseWriter, r *http.Request) {
 		}, r.RemoteAddr)
 	}
 
-	http.Redirect(w, r, devReturnTo(r), http.StatusFound)
+	http.Redirect(w, r, devReturnTo(session), http.StatusFound)
 }
 
 func isSupportedDevRole(role string) bool {
@@ -62,16 +63,9 @@ func isSupportedDevRole(role string) bool {
 	}
 }
 
-func devReturnTo(r *http.Request) string {
-	if returnTo := sanitizeReturnTarget(r.FormValue("return_to")); returnTo != "" {
-		return returnTo
-	}
-	if ref := r.Referer(); ref != "" {
-		if u, err := url.Parse(ref); err == nil {
-			if target := sanitizeReturnTarget(u.RequestURI()); target != "" {
-				return target
-			}
-		}
+func devReturnTo(session domain.UserSession) string {
+	if target := sanitizeReturnTarget(session.LastVisitedPath); target != "" {
+		return target
 	}
 	return "/wizard"
 }

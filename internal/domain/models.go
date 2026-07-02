@@ -43,6 +43,7 @@ type UserSession struct {
 	RoleID               int64  // stored platform role ID; 0 when DB is not configured
 	RoleSlug             string // stored platform role slug: "administrator" | "assessor" | "reader" | ""
 	ImpersonatedRoleSlug string
+	LastVisitedPath      string
 	TeamID               *int64 // nil when no team is assigned
 	TeamName             string // empty when no team is assigned
 	LoginAt              time.Time

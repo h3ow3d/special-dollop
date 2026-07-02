@@ -108,10 +108,11 @@ func TestDevModePanelVisibility(t *testing.T) {
 			GitHubUsername: "admin",
 			DisplayName:    "Admin User",
 		},
-		UserID:   1,
-		RoleID:   1,
-		RoleSlug: users.RoleSlugAdministrator,
-		Active:   true,
+		UserID:          1,
+		RoleID:          1,
+		RoleSlug:        users.RoleSlugAdministrator,
+		LastVisitedPath: "/wizard",
+		Active:          true,
 	}
 
 	t.Run("visible when enabled", func(t *testing.T) {
@@ -156,13 +157,14 @@ func TestDevModeImpersonationChangesSessionNotDatabaseAndAudits(t *testing.T) {
 			GitHubUsername: "admin",
 			DisplayName:    "Admin User",
 		},
-		UserID:   1,
-		RoleID:   1,
-		RoleSlug: users.RoleSlugAdministrator,
-		Active:   true,
+		UserID:          1,
+		RoleID:          1,
+		RoleSlug:        users.RoleSlugAdministrator,
+		LastVisitedPath: "/admin/users",
+		Active:          true,
 	}
 
-	form := url.Values{"role": {users.RoleSlugReader}, "return_to": {"/admin/users"}}
+	form := url.Values{"role": {users.RoleSlugReader}}
 	req := newSessionRequest(t, http.MethodPost, "/dev/impersonate-role", session, form.Encode())
 	req.RemoteAddr = "127.0.0.1:1234"
 	rr := httptest.NewRecorder()
@@ -210,10 +212,11 @@ func TestDevModeImpersonationAffectsPermissions(t *testing.T) {
 			GitHubUsername: "admin",
 			DisplayName:    "Admin User",
 		},
-		UserID:   1,
-		RoleID:   1,
-		RoleSlug: users.RoleSlugAdministrator,
-		Active:   true,
+		UserID:          1,
+		RoleID:          1,
+		RoleSlug:        users.RoleSlugAdministrator,
+		LastVisitedPath: "/admin/users",
+		Active:          true,
 	}
 
 	form := url.Values{"role": {users.RoleSlugReader}}
@@ -244,10 +247,11 @@ func TestDevModeImpersonationDisabledWhenOff(t *testing.T) {
 			GitHubUsername: "admin",
 			DisplayName:    "Admin User",
 		},
-		UserID:   1,
-		RoleID:   1,
-		RoleSlug: users.RoleSlugAdministrator,
-		Active:   true,
+		UserID:          1,
+		RoleID:          1,
+		RoleSlug:        users.RoleSlugAdministrator,
+		LastVisitedPath: "/wizard",
+		Active:          true,
 	}
 
 	form := url.Values{"role": {users.RoleSlugReader}}

@@ -39,7 +39,6 @@
       <p class="font-medium">Assume Role:</p>
       <form method="post" action="/dev/impersonate-role" class="flex flex-wrap gap-2 items-center">
         <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
-        <input type="hidden" name="return_to" value="{{.requestURI}}" />
         <button type="submit" name="role" value="reader" class="px-3 py-1 rounded border bg-white hover:bg-slate-50">Reader</button>
         <button type="submit" name="role" value="assessor" class="px-3 py-1 rounded border bg-white hover:bg-slate-50">Assessor</button>
         <button type="submit" name="role" value="administrator" class="px-3 py-1 rounded border bg-white hover:bg-slate-50">Administrator</button>

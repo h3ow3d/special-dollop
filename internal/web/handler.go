@@ -497,6 +497,12 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, name string, da
 	}
 	session, hasSession := security.SessionFromContext(r.Context())
 	if hasSession {
+		if r.Method == http.MethodGet {
+			if lastVisitedPath := sanitizeReturnTarget(r.URL.RequestURI()); lastVisitedPath != "" && lastVisitedPath != session.LastVisitedPath {
+				session.LastVisitedPath = lastVisitedPath
+				_ = h.oauth.SetSessionCookie(w, session)
+			}
+		}
 		data["session"] = session
 	}
 	data["authenticated"] = hasSession
