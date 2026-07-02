@@ -7,6 +7,7 @@
       </a>
       <nav class="flex flex-wrap items-center gap-2 text-sm">
         <a href="/dashboard" class="{{if eq .requestURI "/dashboard"}}bg-slate-900 text-white{{else}}text-slate-600 hover:text-blue-600 hover:bg-slate-100{{end}} rounded-full px-3 py-1.5 font-medium">Dashboard</a>
+        <a href="/inventory" class="{{if hasPrefix .requestURI "/inventory"}}bg-slate-900 text-white{{else}}text-slate-600 hover:text-blue-600 hover:bg-slate-100{{end}} rounded-full px-3 py-1.5 font-medium">Inventory</a>
         {{if or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor")}}
         <a href="/assessments" class="{{if or (hasPrefix .requestURI "/assessments") (hasPrefix .requestURI "/wizard")}}bg-slate-900 text-white{{else}}text-slate-600 hover:text-blue-600 hover:bg-slate-100{{end}} rounded-full px-3 py-1.5 font-medium">Assessments</a>
         {{end}}

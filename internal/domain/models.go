@@ -166,6 +166,7 @@ type Participant struct {
 // It is ephemeral: once the attestation is published, this state is no longer needed.
 type AssessmentState struct {
 	ID               string
+	InventoryItemID  int64  // links this assessment to a registered inventory item
 	AssessmentDate   time.Time
 	ReviewDate       time.Time
 	User             User

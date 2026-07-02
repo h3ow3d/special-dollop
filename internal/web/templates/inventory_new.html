@@ -1,0 +1,93 @@
+{{define "inventory_new.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Register Package – Inventory – CDSCAM Assurance Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
+  <main class="max-w-2xl mx-auto p-8 space-y-6">
+
+    <nav class="text-sm text-slate-500">
+      <a href="/inventory" class="hover:text-blue-600">Inventory</a>
+      <span class="mx-2">›</span>
+      <span class="text-slate-900 font-medium">Register Package</span>
+    </nav>
+
+    <h1 class="text-2xl font-semibold">Register a Package</h1>
+    <p class="text-sm text-slate-600">Add a new software package to the inventory. Only registered packages can be assessed.</p>
+
+    <form method="post" action="/inventory" class="bg-white border rounded-lg p-6 space-y-5">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Name <span class="text-red-500">*</span></label>
+        <input name="name" required placeholder="e.g. orders-api"
+               class="border rounded p-2 w-full text-sm" />
+        <p class="text-xs text-slate-500 mt-1">Short human-readable name for this package.</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Description</label>
+        <textarea name="description" rows="2" placeholder="Optional description"
+                  class="border rounded p-2 w-full text-sm"></textarea>
+      </div>
+
+      {{if eq .session.EffectiveRoleSlug "administrator"}}
+      <div>
+        <label class="block text-sm font-medium mb-1">Owning Team <span class="text-red-500">*</span></label>
+        <select name="team_id" required class="border rounded p-2 w-full text-sm">
+          <option value="">— select a team —</option>
+          {{range .teams}}
+          <option value="{{.ID}}">{{.Name}}</option>
+          {{end}}
+        </select>
+      </div>
+      {{else}}
+      <div class="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
+        This package will be registered under your team: <strong>{{.session.EffectiveTeamName}}</strong>
+      </div>
+      {{end}}
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Registry <span class="text-red-500">*</span></label>
+          <input name="registry" required placeholder="ghcr.io"
+                 class="border rounded p-2 w-full text-sm" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Package Name</label>
+          <input name="package_name" placeholder="e.g. org/package"
+                 class="border rounded p-2 w-full text-sm" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Package URL</label>
+        <input name="package_url" type="url"
+               placeholder="https://github.com/org/repo/pkgs/container/name"
+               class="border rounded p-2 w-full text-sm" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Repository URL</label>
+        <input name="repository_url" type="url"
+               placeholder="https://github.com/org/repo"
+               class="border rounded p-2 w-full text-sm" />
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium text-sm hover:bg-blue-700">
+          Register Package
+        </button>
+        <a href="/inventory" class="border px-6 py-2 rounded-lg font-medium text-sm hover:bg-slate-50">
+          Cancel
+        </a>
+      </div>
+    </form>
+
+  </main>
+</body>
+</html>{{end}}

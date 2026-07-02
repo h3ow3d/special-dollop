@@ -1,0 +1,110 @@
+{{define "inventory_list.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Inventory – CDSCAM Assurance Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
+  <main class="max-w-6xl mx-auto p-8 space-y-6">
+
+    <section class="bg-white border rounded-lg p-6 space-y-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Inventory</p>
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold">Software Inventory</h1>
+          <p class="text-sm text-slate-600 mt-1">The authoritative list of registered packages that may be assessed.</p>
+        </div>
+        {{if or (eq .session.EffectiveRoleSlug "administrator") (eq .session.EffectiveRoleSlug "assessor")}}
+        <a href="/inventory/new" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shrink-0">
+          + Register Package
+        </a>
+        {{end}}
+      </div>
+    </section>
+
+    {{/* ── Filters ────────────────────────────────────────────────────────── */}}
+    <form method="get" action="/inventory" class="bg-white border rounded-lg p-4 flex flex-wrap gap-4 items-end">
+      <div class="flex-1 min-w-[160px]">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Search</label>
+        <input name="search" value="{{.search}}" placeholder="Package name…"
+               class="border rounded p-2 w-full text-sm" />
+      </div>
+      <div class="min-w-[160px]">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Filter by Team</label>
+        <select name="team_id" class="border rounded p-2 w-full text-sm">
+          <option value="">All Teams</option>
+          {{range .teams}}
+          <option value="{{.ID}}" {{if eq .ID $.filterTeamID}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </div>
+      <div class="min-w-[140px]">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
+        <select name="status" class="border rounded p-2 w-full text-sm">
+          <option value="">All</option>
+          <option value="active" {{if eq $.filterStatus "active"}}selected{{end}}>Active</option>
+          <option value="inactive" {{if eq $.filterStatus "inactive"}}selected{{end}}>Inactive</option>
+        </select>
+      </div>
+      <button class="bg-slate-700 text-white px-4 py-2 rounded text-sm font-medium">Filter</button>
+      {{if or .search .filterTeam .filterStatus}}
+      <a href="/inventory" class="text-sm text-slate-500 hover:text-slate-700 py-2">Clear</a>
+      {{end}}
+    </form>
+
+    {{/* ── Table ─────────────────────────────────────────────────────────── */}}
+    <div class="bg-white border rounded-lg overflow-hidden">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-100 text-left">
+          <tr>
+            <th class="px-4 py-3 font-medium">Package Name</th>
+            <th class="px-4 py-3 font-medium">Owning Team</th>
+            <th class="px-4 py-3 font-medium">Registry</th>
+            <th class="px-4 py-3 font-medium">Status</th>
+            <th class="px-4 py-3 font-medium">Last Updated</th>
+            <th class="px-4 py-3 font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {{range .items}}
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-3">
+              <div class="font-medium">{{.Name}}</div>
+              {{if .PackageName}}<div class="text-xs text-slate-500">{{.PackageName}}</div>{{end}}
+            </td>
+            <td class="px-4 py-3 text-slate-700">{{.TeamName}}</td>
+            <td class="px-4 py-3 text-slate-600">
+              <span class="font-mono text-xs">{{.Registry}}</span>
+            </td>
+            <td class="px-4 py-3">
+              {{if .Active}}
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+              {{else}}
+                <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">Inactive</span>
+              {{end}}
+            </td>
+            <td class="px-4 py-3 text-slate-500 text-xs">{{formatTime .UpdatedAt}}</td>
+            <td class="px-4 py-3">
+              <a href="/inventory/{{.ID}}" class="text-blue-600 hover:underline text-xs font-medium">View</a>
+            </td>
+          </tr>
+          {{else}}
+          <tr>
+            <td colspan="6" class="px-4 py-10 text-center text-slate-500">
+              No inventory items found.
+              {{if or $.search $.filterTeam $.filterStatus}}
+                <a href="/inventory" class="underline text-blue-600">Clear filters</a>
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</body>
+</html>{{end}}

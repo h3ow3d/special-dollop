@@ -16,6 +16,12 @@ const (
 	ActionUserActivated          Action = "user.activated"
 	ActionUserDeactivated        Action = "user.deactivated"
 	ActionBootstrapAdminAssigned Action = "Bootstrap Administrator Assigned"
+
+	ActionInventoryCreated          Action = "inventory.created"
+	ActionInventoryUpdated          Action = "inventory.updated"
+	ActionInventoryActivated        Action = "inventory.activated"
+	ActionInventoryDeactivated      Action = "inventory.deactivated"
+	ActionInventoryOwnershipChanged Action = "inventory.ownership_changed"
 )
 
 // Entry is a single audit log record.

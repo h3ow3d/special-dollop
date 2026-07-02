@@ -1,0 +1,75 @@
+{{define "inventory_edit.html"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Edit {{.item.Name}} – Inventory – CDSCAM Assurance Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  {{template "auth_header.html" .}}
+  {{template "dev_panel.html" .}}
+  <main class="max-w-2xl mx-auto p-8 space-y-6">
+
+    <nav class="text-sm text-slate-500">
+      <a href="/inventory" class="hover:text-blue-600">Inventory</a>
+      <span class="mx-2">›</span>
+      <a href="/inventory/{{.item.ID}}" class="hover:text-blue-600">{{.item.Name}}</a>
+      <span class="mx-2">›</span>
+      <span class="text-slate-900 font-medium">Edit</span>
+    </nav>
+
+    <h1 class="text-2xl font-semibold">Edit Package</h1>
+
+    <form method="post" action="/inventory/{{.item.ID}}" class="bg-white border rounded-lg p-6 space-y-5">
+      <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Name <span class="text-red-500">*</span></label>
+        <input name="name" required value="{{.item.Name}}"
+               class="border rounded p-2 w-full text-sm" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Description</label>
+        <textarea name="description" rows="2"
+                  class="border rounded p-2 w-full text-sm">{{.item.Description}}</textarea>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Registry</label>
+          <input name="registry" value="{{.item.Registry}}"
+                 placeholder="ghcr.io" class="border rounded p-2 w-full text-sm" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Package Name</label>
+          <input name="package_name" value="{{.item.PackageName}}"
+                 class="border rounded p-2 w-full text-sm" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Package URL</label>
+        <input name="package_url" type="url" value="{{.item.PackageURL}}"
+               class="border rounded p-2 w-full text-sm" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Repository URL</label>
+        <input name="repository_url" type="url" value="{{.item.RepositoryURL}}"
+               class="border rounded p-2 w-full text-sm" />
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium text-sm hover:bg-blue-700">
+          Save Changes
+        </button>
+        <a href="/inventory/{{.item.ID}}" class="border px-6 py-2 rounded-lg font-medium text-sm hover:bg-slate-50">
+          Cancel
+        </a>
+      </div>
+    </form>
+
+  </main>
+</body>
+</html>{{end}}

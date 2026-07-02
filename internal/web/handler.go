@@ -25,12 +25,13 @@ var templateFS embed.FS
 
 // Handler wires HTTP routes to the assessment wizard service.
 type Handler struct {
-	svc         *app.Service
-	oauth       *security.OAuthHandler
-	tmpl        *template.Template
-	admin       *AdminHandler // optional; nil when DB is not configured
-	devMode     bool
-	devLoginSvc DevLoginProvider // optional; non-nil when devMode=true and DB available
+	svc           *app.Service
+	oauth         *security.OAuthHandler
+	tmpl          *template.Template
+	admin         *AdminHandler      // optional; nil when DB is not configured
+	inventory     *InventoryHandler  // optional; nil when DB is not configured
+	devMode       bool
+	devLoginSvc   DevLoginProvider // optional; non-nil when devMode=true and DB available
 }
 
 // NewHandler creates a Handler, parsing all embedded templates.
@@ -46,6 +47,13 @@ func NewHandler(svc *app.Service, oauth *security.OAuthHandler) (*Handler, error
 // fluent chaining.
 func (h *Handler) WithAdminHandler(admin *AdminHandler) *Handler {
 	h.admin = admin
+	return h
+}
+
+// WithInventoryHandler attaches the InventoryHandler and returns the receiver
+// for fluent chaining.
+func (h *Handler) WithInventoryHandler(ih *InventoryHandler) *Handler {
+	h.inventory = ih
 	return h
 }
 
@@ -163,6 +171,11 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 		pr.Get("/dashboard", h.dashboard)
 		pr.Get("/profile", h.profile)
 
+		// Inventory routes (all authenticated roles can view)
+		if h.inventory != nil {
+			h.inventory.RegisterRoutes(pr)
+		}
+
 		pr.Get("/wizard", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusFound)
 		})
@@ -228,7 +241,30 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) dashboard(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, "dashboard.html", nil)
+	data := map[string]any{}
+	if h.inventory != nil {
+		counts, err := h.inventory.inventorySvc.CountByTeam(r.Context())
+		if err == nil {
+			ts, err := h.inventory.teamSvc.List(r.Context())
+			if err == nil {
+				type teamCount struct {
+					Name  string
+					Count int
+				}
+				rows := make([]teamCount, 0, len(ts))
+				total := 0
+				for _, t := range ts {
+					c := counts[t.ID]
+					rows = append(rows, teamCount{Name: t.Name, Count: c})
+					total += c
+				}
+				data["inventoryByTeam"] = rows
+				data["inventoryTotal"] = total
+				data["teamTotal"] = len(ts)
+			}
+		}
+	}
+	h.render(w, r, "dashboard.html", data)
 }
 
 func (h *Handler) assessments(w http.ResponseWriter, r *http.Request) {
@@ -265,13 +301,42 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 // ── Wizard handlers ──────────────────────────────────────────────────────────
 
 func (h *Handler) wizardStart(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, "wizard_artefact.html", map[string]any{
+	data := map[string]any{
 		"csrf": csrf.Token(r),
-	})
+	}
+	// If an inventory item ID is provided, pre-populate artefact information.
+	if h.inventory != nil {
+		if idStr := r.URL.Query().Get("inventory_item_id"); idStr != "" {
+			if id, err := strconv.ParseInt(idStr, 10, 64); err == nil && id > 0 {
+				item, err := h.inventory.inventorySvc.GetByID(r.Context(), id)
+				if err == nil {
+					data["inventoryItemID"] = id
+					data["inventoryItemName"] = item.Name
+					data["inventoryRegistry"] = item.Registry
+					data["inventoryPackageName"] = item.PackageName
+					data["inventoryPackageURL"] = item.PackageURL
+				}
+			}
+		}
+	}
+	h.render(w, r, "wizard_artefact.html", data)
 }
 
 func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 	user, _ := security.UserFromContext(r.Context())
+
+	// If inventory is wired, require an inventory item ID.
+	var inventoryItemID int64
+	if h.inventory != nil {
+		idStr := r.FormValue("inventory_item_id")
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			http.Redirect(w, r, "/inventory", http.StatusFound)
+			return
+		}
+		inventoryItemID = id
+	}
+
 	artefact := domain.ArtefactInfo{
 		Name:      r.FormValue("artefact_name"),
 		Type:      r.FormValue("artefact_type"),
@@ -285,6 +350,8 @@ func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	state.InventoryItemID = inventoryItemID
+	h.svc.UpdateState(state)
 	http.Redirect(w, r, fmt.Sprintf("/wizard/%s/step/2", state.ID), http.StatusFound)
 }
 
