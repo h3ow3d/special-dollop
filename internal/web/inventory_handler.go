@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -318,10 +319,19 @@ func (ih *InventoryHandler) refreshDiscovery(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	if err := ih.inventorySvc.RefreshEvidence(r.Context(), item.ID); err != nil {
-		ih.renderDetailPage(w, r, item, session, http.StatusInternalServerError, fmt.Sprintf("refresh discovery: %v", err))
-		return
-	}
+
+	// Discovery involves many sequential OCI registry calls and can take
+	// significantly longer than the global HTTP request timeout. Run it in a
+	// background goroutine using a detached context so that the HTTP timeout
+	// does not cancel the in-flight registry scan. The request context values
+	// (user session, logging fields) are preserved via context.WithoutCancel.
+	refreshCtx := context.WithoutCancel(r.Context())
+	go func() {
+		// Errors are logged at ERROR level by RefreshEvidence itself; the
+		// return value is intentionally discarded here.
+		_ = ih.inventorySvc.RefreshEvidence(refreshCtx, item.ID)
+	}()
+
 	actorID := session.UserID
 	ih.auditSvc.Record(r.Context(), &actorID, audit.ActionInventoryDiscoveryRefresh,
 		map[string]any{"inventory_item_id": item.ID, "name": item.Name}, r.RemoteAddr)
