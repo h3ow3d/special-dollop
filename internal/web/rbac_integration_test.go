@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -240,6 +241,22 @@ func (r *testEvidenceRepo) GetSummaries(_ context.Context) (map[int64]*evidence.
 	return nil, nil
 }
 
+type failingDiscoverer struct {
+	err error
+}
+
+func (d *failingDiscoverer) ListTags(_ context.Context, _, _ string) ([]string, error) {
+	return nil, d.err
+}
+
+func (d *failingDiscoverer) ResolveTag(_ context.Context, _, _, _ string) (*evidence.TagResolution, error) {
+	return nil, nil
+}
+
+func (d *failingDiscoverer) ListReferrers(_ context.Context, _, _, _ string) ([]*evidence.DigestEvidence, []string, error) {
+	return nil, nil, nil
+}
+
 func testRoles() []*users.Role {
 	return []*users.Role{
 		{ID: 1, Name: "Administrator", Slug: users.RoleSlugAdministrator},
@@ -276,6 +293,42 @@ func newRBACIntegrationHandler(t *testing.T) *Handler {
 	h.WithAdminHandler(NewAdminHandler(h, userSvc, teamSvc, auditSvc))
 
 	inventorySvc := inventory.NewService(&testInventoryRepo{}, nil)
+	h.WithInventoryHandler(NewInventoryHandler(h, inventorySvc, teamSvc, auditSvc))
+
+	return h
+}
+
+func newInventoryRefreshFailureHandler(t *testing.T) *Handler {
+	t.Helper()
+
+	h, _ := newTestHandler(t)
+	teamID := int64(10)
+	teamSvc := teams.NewService(&testAdminTeamRepo{
+		teams: []*teams.Team{
+			{ID: teamID, Name: "Platform", Active: true},
+		},
+	})
+	auditSvc := audit.NewService(&testAuditRepo{})
+	repo := &testInventoryRepo{
+		items: []*inventory.InventoryItem{
+			{
+				ID:          1,
+				Name:        "customer-portal",
+				Description: "Customer portal",
+				TeamID:      teamID,
+				Registry:    "ghcr.io",
+				PackageName: "h3ow3d/customer-portal",
+				Active:      true,
+				CreatedAt:   time.Now(),
+				UpdatedAt:   time.Now(),
+			},
+		},
+		nextID: 1,
+	}
+	evidenceSvc := evidence.NewService(&testEvidenceRepo{}, &failingDiscoverer{
+		err: errors.New(`list tags for ghcr.io/h3ow3d/customer-portal: GET "https://ghcr.io/token?scope=repository%3Ah3ow3d%2Fcustomer-portal%3Apull&service=ghcr.io": response status code 403: denied: requested access to the resource is denied`),
+	})
+	inventorySvc := inventory.NewService(repo, evidenceSvc)
 	h.WithInventoryHandler(NewInventoryHandler(h, inventorySvc, teamSvc, auditSvc))
 
 	return h
@@ -766,6 +819,33 @@ func TestTeamIsolation_InventoryDetail(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestInventoryRefreshDiscoveryFailureRendersDetailPage(t *testing.T) {
+	h := newInventoryRefreshFailureHandler(t)
+	router := h.Router([]byte("12345678901234567890123456789012"))
+
+	req := authenticatedFormPostForTeam(t, "/inventory/1/discovery/refresh", users.RoleSlugAdministrator, 0, "", url.Values{})
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	if location := rr.Header().Get("Location"); location != "" {
+		t.Fatalf("expected no redirect on failure, got Location=%q", location)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "Refresh Discovery") {
+		t.Fatalf("expected inventory detail page content, got body=%s", body)
+	}
+	if !strings.Contains(body, "refresh discovery: list tags for ghcr.io/h3ow3d/customer-portal") {
+		t.Fatalf("expected discovery error message in page, got body=%s", body)
+	}
+	if strings.HasPrefix(strings.TrimSpace(body), "refresh discovery:") {
+		t.Fatalf("expected rendered page instead of standalone error body, got body=%s", body)
+	}
 }
 
 // ── Assessment creation authority ─────────────────────────────────────────────
