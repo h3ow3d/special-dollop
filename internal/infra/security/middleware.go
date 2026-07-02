@@ -80,6 +80,24 @@ func (h *OAuthHandler) WithEnricher(e UserEnricher) *OAuthHandler {
 // SecureCookies reports whether cookies should be sent with the Secure flag.
 func (h *OAuthHandler) SecureCookies() bool { return h.cfg.SecureCookies }
 
+// SetSessionCookie signs and stores the current session in the session cookie.
+func (h *OAuthHandler) SetSessionCookie(w http.ResponseWriter, session domain.UserSession) error {
+	encoded, err := h.sc.Encode("clph_session", session)
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "clph_session",
+		Value:    encoded,
+		HttpOnly: true,
+		Secure:   h.cfg.SecureCookies,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+		MaxAge:   86400, // 24 hours
+	})
+	return nil
+}
+
 // RedirectToGitHub handles GET /auth/login.
 // It generates a random state, stores it in a temporary cookie, and redirects
 // the user to GitHub's authorisation endpoint.
@@ -177,20 +195,10 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	encoded, err := h.sc.Encode("clph_session", session)
-	if err != nil {
+	if err := h.SetSessionCookie(w, session); err != nil {
 		http.Error(w, "session encode failed", http.StatusInternalServerError)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     "clph_session",
-		Value:    encoded,
-		HttpOnly: true,
-		Secure:   h.cfg.SecureCookies,
-		SameSite: http.SameSiteStrictMode,
-		Path:     "/",
-		MaxAge:   86400, // 24 hours
-	})
 	http.Redirect(w, r, "/wizard", http.StatusFound)
 }
 

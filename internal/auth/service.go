@@ -5,6 +5,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/h3ow3d/special-dollop/internal/audit"
@@ -19,11 +20,30 @@ type Service struct {
 	userSvc  *users.Service
 	teamRepo teams.Repository
 	audit    *audit.Service
+	bootstrapAdmins map[string]struct{}
+}
+
+// Config controls auth.Service runtime behavior.
+type Config struct {
+	BootstrapAdmins []string
 }
 
 // NewService creates an auth.Service with the required dependencies.
-func NewService(userSvc *users.Service, teamRepo teams.Repository, audit *audit.Service) *Service {
-	return &Service{userSvc: userSvc, teamRepo: teamRepo, audit: audit}
+func NewService(userSvc *users.Service, teamRepo teams.Repository, audit *audit.Service, cfg Config) *Service {
+	bootstrapAdmins := make(map[string]struct{}, len(cfg.BootstrapAdmins))
+	for _, username := range cfg.BootstrapAdmins {
+		username = strings.ToLower(strings.TrimSpace(username))
+		if username == "" {
+			continue
+		}
+		bootstrapAdmins[username] = struct{}{}
+	}
+	return &Service{
+		userSvc:         userSvc,
+		teamRepo:        teamRepo,
+		audit:           audit,
+		bootstrapAdmins: bootstrapAdmins,
+	}
 }
 
 // Enrich looks up (or creates) the platform user for the given GitHub identity,
@@ -37,7 +57,12 @@ func (s *Service) Enrich(ctx context.Context, gitHubUser domain.User, githubUser
 		AvatarURL:      gitHubUser.AvatarURL,
 	}
 
-	platformUser, err := s.userSvc.GetOrCreate(ctx, u)
+	defaultRoleSlug := users.RoleSlugReader
+	if s.isBootstrapAdmin(gitHubUser.GitHubUsername) {
+		defaultRoleSlug = users.RoleSlugAdministrator
+	}
+
+	platformUser, created, err := s.userSvc.GetOrCreateWithRole(ctx, u, defaultRoleSlug)
 	if err != nil {
 		return domain.UserSession{}, fmt.Errorf("get or create user: %w", err)
 	}
@@ -69,6 +94,10 @@ func (s *Service) Enrich(ctx context.Context, gitHubUser domain.User, githubUser
 
 	// Record login audit event.
 	id := platformUser.ID
+	if created && defaultRoleSlug == users.RoleSlugAdministrator {
+		s.audit.Record(ctx, &id, audit.ActionBootstrapAdminAssigned,
+			map[string]any{"github_username": gitHubUser.GitHubUsername, "role": users.RoleSlugAdministrator}, ip)
+	}
 	s.audit.Record(ctx, &id, audit.ActionLogin,
 		map[string]any{"github_username": gitHubUser.GitHubUsername}, ip)
 
@@ -82,4 +111,9 @@ func (s *Service) Enrich(ctx context.Context, gitHubUser domain.User, githubUser
 		LoginAt:    time.Now().UTC(),
 		Active:     platformUser.Active,
 	}, nil
+}
+
+func (s *Service) isBootstrapAdmin(username string) bool {
+	_, ok := s.bootstrapAdmins[strings.ToLower(strings.TrimSpace(username))]
+	return ok
 }
