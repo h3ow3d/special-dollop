@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/h3ow3d/special-dollop/internal/audit"
@@ -62,26 +63,53 @@ func isSupportedDevRole(role string) bool {
 }
 
 func devReturnTo(r *http.Request) string {
-	if returnTo := sanitizeReturnPath(r.FormValue("return_to")); returnTo != "" {
+	if returnTo := sanitizeReturnTarget(r.FormValue("return_to")); returnTo != "" {
 		return returnTo
 	}
 	if ref := r.Referer(); ref != "" {
 		if u, err := url.Parse(ref); err == nil {
-			path := sanitizeReturnPath(u.EscapedPath())
-			if path != "" {
-				if u.RawQuery != "" {
-					return path + "?" + u.RawQuery
-				}
-				return path
+			if target := sanitizeReturnTarget(u.RequestURI()); target != "" {
+				return target
 			}
 		}
 	}
 	return "/wizard"
 }
 
-func sanitizeReturnPath(v string) string {
-	if v == "" || !strings.HasPrefix(v, "/") || strings.HasPrefix(v, "//") {
+func sanitizeReturnTarget(v string) string {
+	if v == "" {
 		return ""
 	}
-	return v
+	u, err := url.Parse(v)
+	if err != nil || u.IsAbs() || u.Host != "" || u.User != nil || u.Opaque != "" {
+		return ""
+	}
+	rawPath := u.EscapedPath()
+	if rawPath == "" {
+		rawPath = u.Path
+	}
+	decodedPath, err := url.PathUnescape(rawPath)
+	if err != nil || !strings.HasPrefix(decodedPath, "/") || strings.HasPrefix(decodedPath, "//") || strings.Contains(decodedPath, "\\") {
+		return ""
+	}
+	cleanedPath := path.Clean(decodedPath)
+	if cleanedPath == "." || !strings.HasPrefix(cleanedPath, "/") || strings.HasPrefix(cleanedPath, "//") || !hasAllowedDevReturnPrefix(cleanedPath) {
+		return ""
+	}
+	if u.RawQuery != "" {
+		return cleanedPath + "?" + u.RawQuery
+	}
+	return cleanedPath
+}
+
+func hasAllowedDevReturnPrefix(v string) bool {
+	switch {
+	case strings.HasPrefix(v, "/wizard"),
+		strings.HasPrefix(v, "/admin"),
+		strings.HasPrefix(v, "/oci"),
+		v == "/":
+		return true
+	default:
+		return false
+	}
 }
