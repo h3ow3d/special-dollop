@@ -13,39 +13,23 @@
       <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">Assessment Hub</p>
       <h1 class="text-2xl font-semibold">Assess OCI artefacts from a dedicated workspace</h1>
       <p class="text-sm text-slate-600 max-w-3xl">
-        Launch a new assessment workflow, resolve artefact digests, and keep assurance work separate from the dashboard and administration areas.
+        Launch a new assessment workflow from registered inventory items and review discovered evidence before recording an assurance outcome.
       </p>
     </section>
 
-    <div class="grid gap-6 lg:grid-cols-2">
-      <section class="bg-white border rounded-lg p-6 flex flex-col gap-4">
-        <div>
-          <h2 class="text-lg font-semibold">Start a new assessment</h2>
-          <p class="text-sm text-slate-600 mt-1">
-            Select a registered inventory item and open the guided suitability workflow. Assessments must be linked to an inventory package.
-          </p>
-        </div>
-        <div class="mt-auto flex gap-3">
-          <a href="/inventory" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-            Select from Inventory →
-          </a>
-        </div>
-      </section>
-
-      <section class="bg-white border rounded-lg p-6 flex flex-col gap-4">
-        <div>
-          <h2 class="text-lg font-semibold">Resolve artefact digests</h2>
-          <p class="text-sm text-slate-600 mt-1">
-            Use OCI discovery to confirm the exact registry reference and digest before beginning an assessment.
-          </p>
-        </div>
-        <div class="mt-auto">
-          <a href="/oci/discover" class="inline-block bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-900">
-            Open OCI Discovery →
-          </a>
-        </div>
-      </section>
-    </div>
+    <section class="bg-white border rounded-lg p-6 flex flex-col gap-4">
+      <div>
+        <h2 class="text-lg font-semibold">Start a new assessment</h2>
+        <p class="text-sm text-slate-600 mt-1">
+          Select a registered inventory item to use its discovered artifact metadata and evidence as the assessment starting point.
+        </p>
+      </div>
+      <div class="mt-auto flex gap-3">
+        <a href="/inventory" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+          Select from Inventory →
+        </a>
+      </div>
+    </section>
   </main>
 </body>
 </html>{{end}}

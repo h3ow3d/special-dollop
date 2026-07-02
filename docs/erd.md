@@ -1,13 +1,64 @@
 # Data Model
 
-This application is stateless. There is no database and no persistent data model.
+The platform now persists inventory enrichment in PostgreSQL while retaining
+in-memory assessment workflow state for active wizard sessions.
 
-The only runtime state is:
+## ERD
 
-- **Session cookie** — signed HTTP-only cookie that holds the authenticated GitHub user identity for the duration of the browser session.
-- **In-memory assessment state** — an `AssessmentState` struct held in a process-local `session.Store` (keyed by session ID) for the duration of a single wizard run. It is discarded after the attestation is published.
+```text
+teams
+  └─< inventory_items
+        └─1 artifact_metadata
+             └─< artifact_evidence
+```
+
+## Inventory Items
+
+`inventory_items` remains the authoritative list of assessable software artifacts.
+
+Key discovery-related fields:
+- `registry`
+- `package_name` (repository path)
+- `reference`
+
+## Artifact Metadata
+
+`artifact_metadata` stores the latest OCI discovery snapshot for one inventory item.
+
+| Field | Type | Description |
+|---|---|---|
+| inventory_item_id | bigint FK unique | Owning inventory item |
+| registry | varchar | Registry host |
+| repository | varchar | Repository path |
+| reference | varchar | User-registered reference (tag or digest) |
+| resolved_reference | text | Digest-pinned reference |
+| digest | varchar | Resolved digest |
+| media_type | varchar | Resolved manifest media type |
+| artifact_type | varchar | OCI artifact type where present |
+| size_bytes | bigint | Manifest size |
+| discovery_status | varchar | `pending`, `success`, `warning`, `failed` |
+| discovery_error | text | Last warning or failure details |
+| last_discovered_at | timestamptz | Successful discovery timestamp |
+| last_refresh_at | timestamptz | Last discovery attempt timestamp |
+
+## Artifact Evidence
+
+`artifact_evidence` stores OCI referrer inventory for the artifact metadata row.
+
+| Field | Type | Description |
+|---|---|---|
+| artifact_metadata_id | bigint FK | Owning metadata snapshot |
+| type | varchar | `signature`, `sbom`, `provenance`, `attestation` |
+| name | varchar | Human-friendly title or artifact type |
+| digest | varchar | Referrer digest |
+| media_type | varchar | Referrer media type |
+| artifact_type | varchar | OCI artifact type |
+| annotations | jsonb | Persisted OCI annotations |
+| created_at | timestamptz | Row creation timestamp |
 
 ## AssessmentState (in-memory only)
+
+Assessment sessions remain in-memory while a workflow is active.
 
 | Field | Type | Description |
 |---|---|---|
@@ -19,27 +70,3 @@ The only runtime state is:
 | Outcome | Outcome | Human-selected outcome (A–D) |
 | PromotionPattern | Pattern | Human-selected pattern (A–D) |
 | Rationale | string | Assessor-provided rationale |
-| CreatedAt / UpdatedAt | time.Time | Timestamps for the attestation |
-
-## User (in-memory, stored in session cookie)
-
-| Field | Type | Description |
-|---|---|---|
-| GitHubUsername | string | GitHub login |
-| DisplayName | string | GitHub display name (falls back to login) |
-| Email | string | Primary verified email |
-| Organisation | string | Primary GitHub organisation |
-| TeamMembership | []string | GitHub team slugs within the organisation |
-| OIDCSubject | string | e.g. "github:username" |
-
-## SectionResponse (value in Sections map)
-
-| Field | Type | Description |
-|---|---|---|
-| Notes | string | Assessor's free-text notes |
-| DiscussionNotes | string | Additional discussion points and follow-up items |
-| Evidence | []EvidenceRef | Referenced evidence items |
-
-## Authoritative Record
-
-The completed assessment is transformed into a signed in-toto attestation and attached to the selected OCI artefact. **The OCI-attached attestation is the system of record.** No separate storage is required.

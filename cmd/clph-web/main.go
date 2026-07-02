@@ -13,6 +13,7 @@ import (
 	"github.com/h3ow3d/special-dollop/internal/auth"
 	"github.com/h3ow3d/special-dollop/internal/bootstrap"
 	"github.com/h3ow3d/special-dollop/internal/database"
+	"github.com/h3ow3d/special-dollop/internal/evidence"
 	"github.com/h3ow3d/special-dollop/internal/infra/attestation"
 	"github.com/h3ow3d/special-dollop/internal/infra/oci"
 	"github.com/h3ow3d/special-dollop/internal/infra/security"
@@ -88,12 +89,18 @@ func main() {
 	teamRepo := teams.NewRepository(db)
 	auditRepo := audit.NewRepository(db)
 	inventoryRepo := inventory.NewRepository(db)
+	evidenceRepo := evidence.NewRepository(db)
 
 	// Services
 	auditSvc := audit.NewService(auditRepo)
 	userSvc := users.NewService(userRepo, roleRepo)
 	teamSvc := teams.NewService(teamRepo)
-	inventorySvc := inventory.NewService(inventoryRepo)
+	evidenceSvc := evidence.NewService(evidenceRepo, oci.NewDiscoverer(oci.PublisherConfig{
+		Username:  getenv("OCI_USERNAME", ""),
+		Password:  getenv("OCI_PASSWORD", ""),
+		PlainHTTP: getenv("OCI_PLAIN_HTTP", "false") == "true",
+	}))
+	inventorySvc := inventory.NewService(inventoryRepo, evidenceSvc)
 
 	// Auth enricher: upserts DB user after GitHub OAuth.
 	authSvc := auth.NewService(userSvc, teamRepo, auditSvc, auth.Config{

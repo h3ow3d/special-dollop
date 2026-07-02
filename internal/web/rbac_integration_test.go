@@ -226,7 +226,7 @@ func newRBACIntegrationHandler(t *testing.T) *Handler {
 	auditSvc := audit.NewService(&testAuditRepo{})
 	h.WithAdminHandler(NewAdminHandler(h, userSvc, teamSvc, auditSvc))
 
-	inventorySvc := inventory.NewService(&testInventoryRepo{})
+	inventorySvc := inventory.NewService(&testInventoryRepo{}, nil)
 	h.WithInventoryHandler(NewInventoryHandler(h, inventorySvc, teamSvc, auditSvc))
 
 	return h
@@ -321,10 +321,11 @@ func TestRBACIntegration_AuthenticatedAccessByRole(t *testing.T) {
 		want   int
 	}{
 		{name: "reader profile page", role: users.RoleSlugReader, method: http.MethodGet, path: "/profile", want: http.StatusOK},
-		{name: "reader inventory page", role: users.RoleSlugReader, method: http.MethodGet, path: "/oci/discover", want: http.StatusOK},
+		{name: "reader oci discovery forbidden", role: users.RoleSlugReader, method: http.MethodGet, path: "/oci/discover", want: http.StatusForbidden},
 		{name: "reader assessments forbidden", role: users.RoleSlugReader, method: http.MethodGet, path: "/assessments", want: http.StatusForbidden},
 		{name: "assessor assessments page", role: users.RoleSlugAssessor, method: http.MethodGet, path: "/assessments", want: http.StatusOK},
 		{name: "assessor assessment page", role: users.RoleSlugAssessor, method: http.MethodGet, path: "/wizard/new", want: http.StatusOK},
+		{name: "administrator oci discovery page", role: users.RoleSlugAdministrator, method: http.MethodGet, path: "/oci/discover", want: http.StatusOK},
 		{name: "administrator teams page", role: users.RoleSlugAdministrator, method: http.MethodGet, path: "/admin/teams", want: http.StatusOK},
 	}
 
@@ -454,12 +455,12 @@ func newIsolationTestHandler(t *testing.T) (h *Handler, platformItemID, appsItem
 
 	invRepo := &testInventoryRepo{
 		items: []*inventory.InventoryItem{
-			{ID: 1, Name: "platform-item", TeamID: platformTeamID, Registry: "ghcr.io", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
-			{ID: 2, Name: "apps-item", TeamID: applicationsTeamID, Registry: "ghcr.io", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: 1, Name: "platform-item", TeamID: platformTeamID, Registry: "ghcr.io", PackageName: "platform/item", Reference: "latest", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+			{ID: 2, Name: "apps-item", TeamID: applicationsTeamID, Registry: "ghcr.io", PackageName: "apps/item", Reference: "latest", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		},
 		nextID: 3, // next auto-increment value after the two seeded items
 	}
-	inventorySvc := inventory.NewService(invRepo)
+	inventorySvc := inventory.NewService(invRepo, nil)
 
 	pID := int64(platformTeamID)
 	userSvc := users.NewService(&testAdminUserRepo{

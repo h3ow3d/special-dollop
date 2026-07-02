@@ -1,17 +1,19 @@
 # CLPH Suitability Assessment Service
 
-A lightweight, stateless Go web application that guides governance personnel through a **Code Low Push High (CLPH)** suitability assessment, generates a signed in-toto attestation, and attaches it directly to an OCI artefact.
+A Go web application that treats inventory as the authoritative source of OCI artifacts, discovers artifact evidence automatically, guides governance personnel through a **Code Low Push High (CLPH)** suitability assessment, and attaches signed attestations directly to OCI artifacts.
 
 ## What this service does
 
 1. Authenticate a user via GitHub OAuth.
-2. Guide the user through a 10-section suitability assessment wizard.
-3. Record assessment responses, notes, evidence references, and participants.
-4. Allow the user to select the assessment outcome (A–D) and promotion pattern.
-5. Generate a signed DSSE-wrapped in-toto attestation.
-6. Attach the attestation directly to the selected OCI artefact.
+2. Register inventory items with registry, repository, and reference details.
+3. Discover digests, metadata, signatures, SBOMs, provenance, and attestations automatically.
+4. Guide the user through a 10-section suitability assessment wizard.
+5. Record assessment responses, notes, evidence references, and participants.
+6. Allow the user to select the assessment outcome (A–D) and promotion pattern.
+7. Generate a signed DSSE-wrapped in-toto attestation.
+8. Attach the attestation directly to the selected OCI artefact.
 
-The OCI-attached attestation is the authoritative record. No database is required.
+Inventory is the authoritative catalog for artifact identity and evidence. OCI-attached attestations remain the signed outcome record.
 
 ## Stack
 

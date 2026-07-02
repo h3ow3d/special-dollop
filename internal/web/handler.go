@@ -2,7 +2,6 @@ package web
 
 import (
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -193,10 +192,6 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 
 		pr.Get("/wizard/{id}/done", h.wizardDone)
 
-		// OCI discovery
-		pr.Get("/oci/discover", h.ociDiscover)
-		pr.Post("/oci/resolve", h.ociResolve)
-
 		// Downloads
 		pr.Get("/wizard/{id}/download/envelope", h.downloadEnvelope)
 		pr.Get("/wizard/{id}/download/statement", h.downloadStatement)
@@ -217,6 +212,7 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 		// Admin routes (only registered when a DB-backed AdminHandler is wired up)
 		pr.Group(func(ar chi.Router) {
 			ar.Use(rbac.RequireRole(rbac.RoleAdministrator))
+			ar.Get("/oci/discover", h.ociDiscover)
 			if h.admin != nil {
 				h.admin.RegisterRoutes(ar)
 			}
@@ -341,8 +337,18 @@ func (h *Handler) wizardStart(w http.ResponseWriter, r *http.Request) {
 					data["inventoryItemID"] = id
 					data["inventoryItemName"] = item.Name
 					data["inventoryRegistry"] = item.Registry
-					data["inventoryPackageName"] = item.PackageName
+					data["inventoryRepository"] = item.PackageName
 					data["inventoryPackageURL"] = item.PackageURL
+					data["inventoryReference"] = item.Reference
+					if metadata, err := h.inventory.inventorySvc.GetArtifactMetadata(r.Context(), id); err == nil && metadata != nil {
+						data["artifactMetadata"] = metadata
+						data["inventoryResolvedReference"] = firstNonEmpty(metadata.ResolvedReference, composeReference(item.Registry, item.PackageName, item.Reference))
+						data["inventoryDigest"] = metadata.Digest
+						data["discoveryReady"] = metadata.Digest != ""
+					} else {
+						data["inventoryResolvedReference"] = composeReference(item.Registry, item.PackageName, item.Reference)
+						data["discoveryReady"] = false
+					}
 				}
 			}
 		}
@@ -383,6 +389,35 @@ func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		inventoryItemID = id
+		artefactName := item.Name
+		if artefactName == "" {
+			artefactName = r.FormValue("artefact_name")
+		}
+		resolvedReference := composeReference(item.Registry, item.PackageName, item.Reference)
+		digest := r.FormValue("artefact_digest")
+		if metadata, err := h.inventory.inventorySvc.GetArtifactMetadata(r.Context(), id); err == nil && metadata != nil {
+			if metadata.Digest != "" {
+				digest = metadata.Digest
+			}
+			resolvedReference = firstNonEmpty(metadata.ResolvedReference, resolvedReference)
+		}
+		artefact := domain.ArtefactInfo{
+			Name:      artefactName,
+			Type:      r.FormValue("artefact_type"),
+			Digest:    digest,
+			Reference: resolvedReference,
+			Registry:  item.Registry,
+		}
+		reviewDate := parseDate(r.FormValue("review_date"))
+		state, err := h.svc.StartAssessment(user, artefact, reviewDate)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		state.InventoryItemID = inventoryItemID
+		h.svc.UpdateState(state)
+		http.Redirect(w, r, fmt.Sprintf("/wizard/%s/step/2", state.ID), http.StatusFound)
+		return
 	}
 
 	artefact := domain.ArtefactInfo{
@@ -564,29 +599,8 @@ func (h *Handler) wizardDone(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ociDiscover(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "oci_discover.html", map[string]any{
-		"csrf": csrf.Token(r),
-	})
-}
-
-func (h *Handler) ociResolve(w http.ResponseWriter, r *http.Request) {
-	// In production, call the OCI Distribution Registry API to resolve the digest.
-	// For now, return a simple acknowledgement so the wizard can proceed.
-	registry := r.FormValue("registry")
-	repo := r.FormValue("repository")
-	tag := r.FormValue("tag")
-	if registry == "" || repo == "" {
-		http.Error(w, "registry and repository are required", http.StatusBadRequest)
-		return
-	}
-	ref := fmt.Sprintf("%s/%s", registry, repo)
-	if tag != "" {
-		ref += ":" + tag
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"registry":  registry,
-		"reference": ref,
-		"note":      "Enter the digest manually or use cosign/crane to resolve it before starting the assessment.",
+		"csrf":       csrf.Token(r),
+		"deprecated": true,
 	})
 }
 
@@ -683,6 +697,35 @@ func parseDate(v string) time.Time {
 	}
 	t, _ := time.Parse("2006-01-02", v)
 	return t
+}
+
+func composeReference(registryHost, repository, reference string) string {
+	registryHost = strings.TrimSuffix(strings.TrimSpace(registryHost), "/")
+	repository = strings.Trim(strings.TrimSpace(repository), "/")
+	reference = strings.TrimSpace(reference)
+	if registryHost == "" || repository == "" {
+		return ""
+	}
+	base := registryHost + "/" + repository
+	switch {
+	case reference == "":
+		return base
+	case strings.HasPrefix(reference, "@"):
+		return base + reference
+	case strings.HasPrefix(reference, "sha256:"):
+		return base + "@" + reference
+	default:
+		return base + ":" + strings.TrimPrefix(reference, ":")
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // parseEvidence splits a textarea value (one reference per line) into EvidenceRef slice.

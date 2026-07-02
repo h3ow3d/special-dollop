@@ -13,6 +13,7 @@ type InventoryItem struct {
 	Description   string
 	TeamID        int64
 	Registry      string
+	Reference     string
 	PackageURL    string
 	PackageName   string
 	RepositoryURL string

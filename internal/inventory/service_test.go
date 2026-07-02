@@ -91,7 +91,7 @@ func (r *memRepo) CountByTeam(_ context.Context) (map[int64]int, error) {
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 func TestCreate(t *testing.T) {
-	svc := NewService(newMemRepo())
+	svc := NewService(newMemRepo(), nil)
 	item := &InventoryItem{
 		Name:     "proverjay",
 		TeamID:   1,
@@ -109,7 +109,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestGetByID(t *testing.T) {
-	svc := NewService(newMemRepo())
+	svc := NewService(newMemRepo(), nil)
 	item := &InventoryItem{Name: "harbor", TeamID: 1}
 	_ = svc.Create(context.Background(), item)
 
@@ -123,7 +123,7 @@ func TestGetByID(t *testing.T) {
 }
 
 func TestGetByID_NotFound(t *testing.T) {
-	svc := NewService(newMemRepo())
+	svc := NewService(newMemRepo(), nil)
 	_, err := svc.GetByID(context.Background(), 999)
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -131,7 +131,7 @@ func TestGetByID_NotFound(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	svc := NewService(newMemRepo())
+	svc := NewService(newMemRepo(), nil)
 	item := &InventoryItem{Name: "cert-manager", TeamID: 2}
 	_ = svc.Create(context.Background(), item)
 
@@ -148,7 +148,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestSetActive(t *testing.T) {
-	svc := NewService(newMemRepo())
+	svc := NewService(newMemRepo(), nil)
 	item := &InventoryItem{Name: "trivy", TeamID: 3}
 	_ = svc.Create(context.Background(), item)
 
@@ -162,7 +162,7 @@ func TestSetActive(t *testing.T) {
 }
 
 func TestTeamOwnership(t *testing.T) {
-	svc := NewService(newMemRepo())
+	svc := NewService(newMemRepo(), nil)
 	_ = svc.Create(context.Background(), &InventoryItem{Name: "item-a", TeamID: 1})
 	_ = svc.Create(context.Background(), &InventoryItem{Name: "item-b", TeamID: 1})
 	_ = svc.Create(context.Background(), &InventoryItem{Name: "item-c", TeamID: 2})
@@ -182,7 +182,7 @@ func TestTeamOwnership(t *testing.T) {
 }
 
 func TestCountByTeam(t *testing.T) {
-	svc := NewService(newMemRepo())
+	svc := NewService(newMemRepo(), nil)
 	_ = svc.Create(context.Background(), &InventoryItem{Name: "a", TeamID: 1})
 	_ = svc.Create(context.Background(), &InventoryItem{Name: "b", TeamID: 1})
 	_ = svc.Create(context.Background(), &InventoryItem{Name: "c", TeamID: 2})
@@ -204,7 +204,7 @@ func TestCountByTeam(t *testing.T) {
 }
 
 func TestInventoryVisibility(t *testing.T) {
-	svc := NewService(newMemRepo())
+	svc := NewService(newMemRepo(), nil)
 	for _, name := range []string{"a", "b", "c"} {
 		_ = svc.Create(context.Background(), &InventoryItem{Name: name, TeamID: 1})
 	}

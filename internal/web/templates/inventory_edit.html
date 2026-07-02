@@ -37,15 +37,21 @@
 
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium mb-1">Registry</label>
-          <input name="registry" value="{{.item.Registry}}"
+          <label class="block text-sm font-medium mb-1">Registry <span class="text-red-500">*</span></label>
+          <input name="registry" value="{{.item.Registry}}" required
                  placeholder="ghcr.io" class="border rounded p-2 w-full text-sm" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-1">Package Name</label>
-          <input name="package_name" value="{{.item.PackageName}}"
+          <label class="block text-sm font-medium mb-1">Repository <span class="text-red-500">*</span></label>
+          <input name="package_name" value="{{.item.PackageName}}" required
                  class="border rounded p-2 w-full text-sm" />
         </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Reference <span class="text-red-500">*</span></label>
+        <input name="reference" value="{{.item.Reference}}" required
+               class="border rounded p-2 w-full text-sm font-mono" />
       </div>
 
       <div>
