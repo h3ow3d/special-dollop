@@ -9,7 +9,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata_v18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cdscam"]
       interval: 5s
@@ -35,4 +35,4 @@ services:
         condition: service_healthy
 
 volumes:
-  pgdata:
+  pgdata_v18:
