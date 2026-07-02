@@ -457,7 +457,7 @@ func newIsolationTestHandler(t *testing.T) (h *Handler, platformItemID, appsItem
 			{ID: 1, Name: "platform-item", TeamID: platformTeamID, Registry: "ghcr.io", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 			{ID: 2, Name: "apps-item", TeamID: applicationsTeamID, Registry: "ghcr.io", Active: true, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		},
-		nextID: 2,
+		nextID: 3, // next auto-increment value after the two seeded items
 	}
 	inventorySvc := inventory.NewService(invRepo)
 

@@ -355,6 +355,9 @@ func (h *Handler) wizardCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Team isolation: assessors may only create assessments for their own team's inventory.
+		// Readers cannot reach this handler because the route group requires Administrator or
+		// Assessor role (see RegisterRoutes). Only the Assessor case needs an explicit team
+		// check; Administrators are unrestricted.
 		session, _ := security.SessionFromContext(r.Context())
 		if session.EffectiveRoleSlug() == string(rbac.RoleAssessor) {
 			if session.TeamID == nil || *session.TeamID != item.TeamID {
