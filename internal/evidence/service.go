@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
@@ -82,12 +83,54 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 	)
 
 	// Step 2: resolve each tag to a digest and upsert rows.
-	// Track unique digests discovered in this scan.
+	// Tags that follow the cosign fallback referrers naming scheme
+	// (sha256-<hex>.(sig|att|sbom)) are buffered as pending evidence rather than
+	// stored as primary artifact rows; they will be attached to their subject
+	// digest in step 3.
 	seenDigests := make(map[string]*ArtifactDigest)
+	// sidecarsBySubject maps a subject digest string to sidecar evidence items
+	// discovered from cosign fallback tags.
+	sidecarsBySubject := make(map[string][]*DigestEvidence)
 	skippedTagCount := 0
 	processedTags := 0
 	for _, tag := range tags {
 		processedTags++
+
+		// Detect cosign fallback referrer tags and buffer as pending evidence.
+		if subjectDigest, ok := parseSidecarTagSubject(tag); ok {
+			resolution, err := s.discoverer.ResolveTag(ctx, target.Registry, target.Repository, tag)
+			if err != nil {
+				skippedTagCount++
+				slog.Warn("inventory discovery sidecar tag resolution failed",
+					"operation", "evidence.resolve_tag",
+					"user", user,
+					"role", role,
+					"team", team,
+					"inventory_item_id", target.InventoryItemID,
+					"tag", tag,
+					"error", err.Error(),
+				)
+				continue
+			}
+			sidecarsBySubject[subjectDigest] = append(sidecarsBySubject[subjectDigest], &DigestEvidence{
+				Type:         classifySidecarEvidence(tag, resolution),
+				Name:         tag,
+				Digest:       resolution.Digest,
+				MediaType:    resolution.MediaType,
+				ArtifactType: resolution.ArtifactType,
+			})
+			slog.Debug("inventory discovery sidecar tag buffered",
+				"operation", "evidence.resolve_tag",
+				"user", user,
+				"role", role,
+				"team", team,
+				"inventory_item_id", target.InventoryItemID,
+				"tag", tag,
+				"subject_digest", subjectDigest,
+			)
+			continue
+		}
+
 		resolution, err := s.discoverer.ResolveTag(ctx, target.Registry, target.Repository, tag)
 		if err != nil {
 			// Non-fatal: skip this tag and continue with the next.
@@ -168,6 +211,13 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 				return updateErr
 			}
 			continue
+		}
+
+		// Merge evidence discovered from cosign fallback tags (e.g. GHCR, which
+		// does not fully support the OCI referrers API). These are deduped by
+		// the ON CONFLICT clause in ReplaceEvidence.
+		if sidecars, ok := sidecarsBySubject[digest]; ok {
+			referrers = append(referrers, sidecars...)
 		}
 
 		if err := s.repo.ReplaceEvidence(ctx, d.ID, referrers); err != nil {
@@ -263,4 +313,50 @@ func logUnexpectedError(operation, user, role, team string, inventoryItemID int6
 		"inventory_item_id", inventoryItemID,
 		"error", err.Error(),
 	)
+}
+
+// sidecarTagRE matches cosign fallback referrers tags of the form
+// sha256-<64 hex chars>.(sig|att|sbom). These encode the subject digest in the
+// tag name and must not be treated as primary container image artifacts.
+var sidecarTagRE = regexp.MustCompile(`^sha256-([a-f0-9]{64})\.(sig|att|sbom)$`)
+
+// parseSidecarTagSubject returns the OCI subject digest encoded in a cosign
+// fallback referrers tag (e.g. "sha256-abc…123.sig" → "sha256:abc…123").
+// Returns ok=false when tag does not follow that naming scheme.
+func parseSidecarTagSubject(tag string) (subjectDigest string, ok bool) {
+	m := sidecarTagRE.FindStringSubmatch(tag)
+	if m == nil {
+		return "", false
+	}
+	return "sha256:" + m[1], true
+}
+
+// classifySidecarEvidence classifies a resolved sidecar tag into an EvidenceType.
+// The tag suffix is the primary signal; ArtifactType is used as a tiebreaker
+// for .att tags which may carry either attestations or provenance.
+func classifySidecarEvidence(tag string, r *TagResolution) EvidenceType {
+	switch {
+	case strings.HasSuffix(tag, ".sig"):
+		return EvidenceTypeSignature
+	case strings.HasSuffix(tag, ".sbom"):
+		return EvidenceTypeSBOM
+	case strings.HasSuffix(tag, ".att"):
+		at := strings.ToLower(r.ArtifactType)
+		if strings.Contains(at, "provenance") || strings.Contains(at, "slsa") {
+			return EvidenceTypeProvenance
+		}
+		return EvidenceTypeAttestation
+	}
+	// Fallback for non-cosign sidecar formats: classify by manifest fields.
+	s := strings.ToLower(r.MediaType + " " + r.ArtifactType)
+	switch {
+	case strings.Contains(s, "signature"), strings.Contains(s, "simplesigning"):
+		return EvidenceTypeSignature
+	case strings.Contains(s, "sbom"), strings.Contains(s, "spdx"), strings.Contains(s, "cyclonedx"):
+		return EvidenceTypeSBOM
+	case strings.Contains(s, "provenance"), strings.Contains(s, "slsa"):
+		return EvidenceTypeProvenance
+	default:
+		return EvidenceTypeAttestation
+	}
 }
