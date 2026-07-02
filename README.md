@@ -32,6 +32,12 @@ docker compose up --build
 
 Open `http://localhost:8080`, authenticate with GitHub, then run through the wizard.
 
+## Make targets
+
+- `make test` and `make build` use your local Go toolchain when `go` is installed.
+- If `go` is not installed, those targets fall back to `golang:1.25.7` via Docker.
+- `make run` uses local `go run` when available, otherwise it falls back to `docker compose up --build`.
+
 ## Services (docker compose)
 
 | Service | Description |

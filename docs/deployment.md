@@ -43,6 +43,11 @@
 
 5. Open `http://localhost:8080`
 
+You can also use the Makefile targets:
+
+- `make run` uses local `go run` when Go is installed, otherwise it falls back to `docker compose up --build`.
+- `make test` and `make build` use local Go when available, otherwise they run inside `golang:1.25.7` with Docker.
+
 The docker compose stack starts:
 - `clph-web` — the Go web application
 
