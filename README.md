@@ -30,6 +30,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+If you upgraded from an earlier local setup, the stack now uses a new Postgres volume (`pgdata_v18`) to avoid incompatible old data layouts.
+
 Open `http://localhost:8080`, authenticate with GitHub, then run through the wizard.
 
 ## Services (docker compose)
