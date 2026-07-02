@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -62,13 +63,16 @@ func (d *Discoverer) ListTags(ctx context.Context, registry, repository string) 
 		return nil, err
 	}
 
+	slog.Debug("oci list tags started", "registry", registry, "repository", repository)
 	var tags []string
 	if err := repo.Tags(ctx, "", func(batch []string) error {
 		tags = append(tags, batch...)
 		return nil
 	}); err != nil {
+		slog.Debug("oci list tags failed", "registry", registry, "repository", repository, "error", err.Error())
 		return nil, fmt.Errorf("list tags for %s/%s: %w", registry, repository, err)
 	}
+	slog.Debug("oci list tags complete", "registry", registry, "repository", repository, "tag_count", len(tags))
 	return tags, nil
 }
 
@@ -81,8 +85,10 @@ func (d *Discoverer) ResolveTag(ctx context.Context, registry, repository, tag s
 	}
 
 	ref := registry + "/" + repository + ":" + tag
+	slog.Debug("oci resolve tag", "ref", ref)
 	desc, err := repo.Resolve(ctx, tag)
 	if err != nil {
+		slog.Debug("oci resolve tag failed", "ref", ref, "error", err.Error())
 		return nil, fmt.Errorf("resolve tag %q: %w", ref, err)
 	}
 
@@ -118,6 +124,7 @@ func (d *Discoverer) ResolveTag(ctx context.Context, registry, repository, tag s
 		SizeBytes: desc.Size,
 	}
 	enrichResolutionFromManifest(resolution, manifestBytes)
+	slog.Debug("oci resolve tag complete", "ref", ref, "digest", resolution.Digest)
 	return resolution, nil
 }
 
@@ -131,8 +138,10 @@ func (d *Discoverer) ListReferrers(ctx context.Context, registry, repository, di
 	}
 
 	ref := registry + "/" + repository + "@" + digest
+	slog.Debug("oci list referrers started", "ref", ref)
 	desc, err := repo.Resolve(ctx, digest)
 	if err != nil {
+		slog.Debug("oci list referrers resolve failed", "ref", ref, "error", err.Error())
 		return nil, nil, fmt.Errorf("resolve digest %q: %w", ref, err)
 	}
 
@@ -145,9 +154,11 @@ func (d *Discoverer) ListReferrers(ctx context.Context, registry, repository, di
 		}
 		return nil
 	}); err != nil {
+		slog.Debug("oci list referrers enumeration failed", "ref", ref, "error", err.Error())
 		warnings = append(warnings, fmt.Sprintf("failed to enumerate OCI referrers: %v", err))
 	}
 
+	slog.Debug("oci list referrers complete", "ref", ref, "referrer_count", len(referrers), "warning_count", len(warnings))
 	return referrers, warnings, nil
 }
 

@@ -72,15 +72,26 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 		return fmt.Errorf("list tags for %s/%s: %w", target.Registry, target.Repository, err)
 	}
 
+	slog.Info("inventory discovery tags enumerated",
+		"operation", "evidence.list_tags",
+		"user", user,
+		"role", role,
+		"team", team,
+		"inventory_item_id", target.InventoryItemID,
+		"tag_count", len(tags),
+	)
+
 	// Step 2: resolve each tag to a digest and upsert rows.
 	// Track unique digests discovered in this scan.
 	seenDigests := make(map[string]*ArtifactDigest)
+	skippedTagCount := 0
 	processedTags := 0
 	for _, tag := range tags {
 		processedTags++
 		resolution, err := s.discoverer.ResolveTag(ctx, target.Registry, target.Repository, tag)
 		if err != nil {
 			// Non-fatal: skip this tag and continue with the next.
+			skippedTagCount++
 			slog.Warn("inventory discovery tag resolution failed",
 				"operation", "evidence.resolve_tag",
 				"user", user,
@@ -136,6 +147,15 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 	}
 
 	// Step 3: discover referrer evidence for every unique digest found above.
+	slog.Info("inventory discovery starting referrer scan",
+		"operation", "evidence.list_referrers",
+		"user", user,
+		"role", role,
+		"team", team,
+		"inventory_item_id", target.InventoryItemID,
+		"unique_digest_count", len(seenDigests),
+		"skipped_tag_count", skippedTagCount,
+	)
 	discoveredEvidenceCount := 0
 	processedDigests := 0
 	for digest, d := range seenDigests {
