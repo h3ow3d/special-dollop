@@ -31,7 +31,7 @@ docker compose up --build
 ```
 
 If you upgraded from an earlier local setup, the stack now uses a new Postgres volume (`pgdata_v18`) to avoid incompatible old data layouts.
-If you do not need old local DB data, remove the previous volume (replace `<project-name>` with your Compose project name):
+If you do not need old local DB data, remove the previous volume (replace `<project-name>` with your Compose project name, which defaults to the directory name):
 
 ```bash
 docker volume rm <project-name>_pgdata
