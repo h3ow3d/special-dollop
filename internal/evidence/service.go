@@ -34,6 +34,7 @@ func NewService(repo Repository, discoverer RepositoryDiscoverer) *Service {
 // Errors during individual tag or evidence resolution are tolerated; they are
 // stored as per-digest discovery status and do not abort the full scan.
 func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget) error {
+	user, role, team := infrolog.UserContextFields(ctx)
 	if s == nil || s.repo == nil {
 		return nil
 	}
@@ -43,11 +44,11 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 	now := time.Now().UTC()
 
 	if target.InventoryItemID <= 0 {
-		logUnexpectedError(ctx, "evidence.refresh", target.InventoryItemID, fmt.Errorf("inventory item id is required"))
+		logUnexpectedError("evidence.refresh", user, role, team, target.InventoryItemID, fmt.Errorf("inventory item id is required"))
 		return fmt.Errorf("inventory item id is required")
 	}
 	if target.Registry == "" || target.Repository == "" {
-		logUnexpectedError(ctx, "evidence.refresh", target.InventoryItemID, fmt.Errorf("registry and repository are required for OCI discovery"))
+		logUnexpectedError("evidence.refresh", user, role, team, target.InventoryItemID, fmt.Errorf("registry and repository are required for OCI discovery"))
 		return fmt.Errorf("registry and repository are required for OCI discovery")
 	}
 	if s.discoverer == nil {
@@ -56,9 +57,9 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 
 	slog.Info("inventory discovery refresh started",
 		"operation", "evidence.refresh",
-		"user", userFromContext(ctx),
-		"role", roleFromContext(ctx),
-		"team", teamFromContext(ctx),
+		"user", user,
+		"role", role,
+		"team", team,
 		"inventory_item_id", target.InventoryItemID,
 		"registry", target.Registry,
 		"repository", target.Repository,
@@ -67,7 +68,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 	// Step 1: enumerate all tags in the repository.
 	tags, err := s.discoverer.ListTags(ctx, target.Registry, target.Repository)
 	if err != nil {
-		logUnexpectedError(ctx, "evidence.list_tags", target.InventoryItemID, err)
+		logUnexpectedError("evidence.list_tags", user, role, team, target.InventoryItemID, err)
 		return fmt.Errorf("list tags for %s/%s: %w", target.Registry, target.Repository, err)
 	}
 
@@ -82,9 +83,9 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 			// Non-fatal: skip this tag and continue with the next.
 			slog.Warn("inventory discovery tag resolution failed",
 				"operation", "evidence.resolve_tag",
-				"user", userFromContext(ctx),
-				"role", roleFromContext(ctx),
-				"team", teamFromContext(ctx),
+				"user", user,
+				"role", role,
+				"team", team,
 				"inventory_item_id", target.InventoryItemID,
 				"tag", tag,
 				"error", err.Error(),
@@ -104,7 +105,7 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 				LastRefreshAt:   now,
 			}
 			if err := s.repo.UpsertDigest(ctx, d); err != nil {
-				logUnexpectedError(ctx, "evidence.upsert_digest", target.InventoryItemID, err)
+				logUnexpectedError("evidence.upsert_digest", user, role, team, target.InventoryItemID, err)
 				return fmt.Errorf("upsert digest %q: %w", resolution.Digest, err)
 			}
 			seenDigests[resolution.Digest] = d
@@ -118,14 +119,14 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 			LastSeenAt:       now,
 		}
 		if err := s.repo.UpsertTag(ctx, rt); err != nil {
-			logUnexpectedError(ctx, "evidence.upsert_tag", target.InventoryItemID, err)
+			logUnexpectedError("evidence.upsert_tag", user, role, team, target.InventoryItemID, err)
 			return fmt.Errorf("upsert tag %q: %w", tag, err)
 		}
 		slog.Debug("inventory discovery progress",
 			"operation", "evidence.resolve_tag",
-			"user", userFromContext(ctx),
-			"role", roleFromContext(ctx),
-			"team", teamFromContext(ctx),
+			"user", user,
+			"role", role,
+			"team", team,
 			"inventory_item_id", target.InventoryItemID,
 			"processed_tags", processedTags,
 			"total_tags", len(tags),
@@ -139,16 +140,16 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 	for digest, d := range seenDigests {
 		referrers, warnings, err := s.discoverer.ListReferrers(ctx, target.Registry, target.Repository, digest)
 		if err != nil {
-			logUnexpectedError(ctx, "evidence.list_referrers", target.InventoryItemID, err)
+			logUnexpectedError("evidence.list_referrers", user, role, team, target.InventoryItemID, err)
 			if updateErr := s.repo.UpdateDigestStatus(ctx, d.ID, DiscoveryStatusFailed, err.Error(), time.Time{}); updateErr != nil {
-				logUnexpectedError(ctx, "evidence.update_digest_status", target.InventoryItemID, updateErr)
+				logUnexpectedError("evidence.update_digest_status", user, role, team, target.InventoryItemID, updateErr)
 				return updateErr
 			}
 			continue
 		}
 
 		if err := s.repo.ReplaceEvidence(ctx, d.ID, referrers); err != nil {
-			logUnexpectedError(ctx, "evidence.replace", target.InventoryItemID, err)
+			logUnexpectedError("evidence.replace", user, role, team, target.InventoryItemID, err)
 			return fmt.Errorf("replace evidence for digest %q: %w", digest, err)
 		}
 		discoveredEvidenceCount += len(referrers)
@@ -160,23 +161,23 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 			errMsg = strings.Join(warnings, "\n")
 			slog.Warn("inventory discovery warnings",
 				"operation", "evidence.list_referrers",
-				"user", userFromContext(ctx),
-				"role", roleFromContext(ctx),
-				"team", teamFromContext(ctx),
+				"user", user,
+				"role", role,
+				"team", team,
 				"inventory_item_id", target.InventoryItemID,
 				"digest", digest,
 				"warning_count", len(warnings),
 			)
 		}
 		if err := s.repo.UpdateDigestStatus(ctx, d.ID, status, errMsg, now); err != nil {
-			logUnexpectedError(ctx, "evidence.update_digest_status", target.InventoryItemID, err)
+			logUnexpectedError("evidence.update_digest_status", user, role, team, target.InventoryItemID, err)
 			return fmt.Errorf("update digest status for %q: %w", digest, err)
 		}
 		slog.Debug("inventory discovery progress",
 			"operation", "evidence.list_referrers",
-			"user", userFromContext(ctx),
-			"role", roleFromContext(ctx),
-			"team", teamFromContext(ctx),
+			"user", user,
+			"role", role,
+			"team", team,
 			"inventory_item_id", target.InventoryItemID,
 			"processed_digests", len(seenDigests),
 			"digest", digest,
@@ -185,9 +186,9 @@ func (s *Service) RefreshRepository(ctx context.Context, target DiscoveryTarget)
 
 	slog.Info("inventory discovery refresh complete",
 		"operation", "evidence.refresh",
-		"user", userFromContext(ctx),
-		"role", roleFromContext(ctx),
-		"team", teamFromContext(ctx),
+		"user", user,
+		"role", role,
+		"team", team,
 		"inventory_item_id", target.InventoryItemID,
 		"discovered_artifact_count", len(seenDigests),
 		"discovered_evidence_count", discoveredEvidenceCount,
@@ -230,28 +231,13 @@ func (s *Service) GetSummaries(ctx context.Context) (map[int64]*RepositorySummar
 	return s.repo.GetSummaries(ctx)
 }
 
-func logUnexpectedError(ctx context.Context, operation string, inventoryItemID int64, err error) {
+func logUnexpectedError(operation, user, role, team string, inventoryItemID int64, err error) {
 	slog.Error("unexpected inventory discovery error",
 		"operation", operation,
-		"user", userFromContext(ctx),
-		"role", roleFromContext(ctx),
-		"team", teamFromContext(ctx),
+		"user", user,
+		"role", role,
+		"team", team,
 		"inventory_item_id", inventoryItemID,
 		"error", err.Error(),
 	)
-}
-
-func userFromContext(ctx context.Context) string {
-	user, _, _ := infrolog.UserContextFields(ctx)
-	return user
-}
-
-func roleFromContext(ctx context.Context) string {
-	_, role, _ := infrolog.UserContextFields(ctx)
-	return role
-}
-
-func teamFromContext(ctx context.Context) string {
-	_, _, team := infrolog.UserContextFields(ctx)
-	return team
 }

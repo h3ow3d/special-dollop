@@ -23,16 +23,17 @@ func NewService(repo Repository, evidenceSvc *evidence.Service) *Service {
 // Create persists a new inventory item. The item's TeamID must be set by the
 // caller; the service does not enforce team ownership rules.
 func (s *Service) Create(ctx context.Context, item *InventoryItem) error {
+	user, role, team := infrolog.UserContextFields(ctx)
 	item.Active = true
 	if err := s.repo.Create(ctx, item); err != nil {
-		logError(ctx, "inventory.create", item.ID, err)
+		logError("inventory.create", user, role, team, item.ID, err)
 		return fmt.Errorf("create inventory item: %w", err)
 	}
 	slog.Info("inventory item created",
 		"operation", "inventory.create",
-		"user", userFromContext(ctx),
-		"role", roleFromContext(ctx),
-		"team", teamFromContext(ctx),
+		"user", user,
+		"role", role,
+		"team", team,
 		"inventory_item_id", item.ID,
 		"inventory_name", item.Name,
 		"inventory_team_id", item.TeamID,
@@ -51,15 +52,16 @@ func (s *Service) GetByID(ctx context.Context, id int64) (*InventoryItem, error)
 // fields (Name, Description, Registry, PackageURL, PackageName, RepositoryURL)
 // are updated; Active and TeamID are not changed by this method.
 func (s *Service) Update(ctx context.Context, item *InventoryItem) error {
+	user, role, team := infrolog.UserContextFields(ctx)
 	if err := s.repo.Update(ctx, item); err != nil {
-		logError(ctx, "inventory.update", item.ID, err)
+		logError("inventory.update", user, role, team, item.ID, err)
 		return fmt.Errorf("update inventory item: %w", err)
 	}
 	slog.Info("inventory item updated",
 		"operation", "inventory.update",
-		"user", userFromContext(ctx),
-		"role", roleFromContext(ctx),
-		"team", teamFromContext(ctx),
+		"user", user,
+		"role", role,
+		"team", team,
 		"inventory_item_id", item.ID,
 		"inventory_name", item.Name,
 	)
@@ -92,16 +94,17 @@ func (s *Service) CountByTeam(ctx context.Context) (map[int64]int, error) {
 // Unlike the best-effort refresh inside Create/Update, this method propagates
 // errors so the HTTP handler can surface them to the user.
 func (s *Service) RefreshEvidence(ctx context.Context, id int64) error {
+	user, role, team := infrolog.UserContextFields(ctx)
 	item, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		logError(ctx, "inventory.refresh", id, err)
+		logError("inventory.refresh", user, role, team, id, err)
 		return err
 	}
 	slog.Info("inventory refresh requested",
 		"operation", "inventory.refresh",
-		"user", userFromContext(ctx),
-		"role", roleFromContext(ctx),
-		"team", teamFromContext(ctx),
+		"user", user,
+		"role", role,
+		"team", team,
 		"inventory_item_id", id,
 	)
 	return s.refreshEvidence(ctx, item)
@@ -142,6 +145,7 @@ func (s *Service) GetSummaries(ctx context.Context) (map[int64]*evidence.Reposit
 }
 
 func (s *Service) refreshEvidence(ctx context.Context, item *InventoryItem) error {
+	user, role, team := infrolog.UserContextFields(ctx)
 	if s.evidenceSvc == nil || item == nil {
 		return nil
 	}
@@ -150,41 +154,26 @@ func (s *Service) refreshEvidence(ctx context.Context, item *InventoryItem) erro
 		Registry:        item.Registry,
 		Repository:      item.PackageName,
 	}); err != nil {
-		logError(ctx, "inventory.refresh", item.ID, err)
+		logError("inventory.refresh", user, role, team, item.ID, err)
 		return err
 	}
 	slog.Info("inventory refresh complete",
 		"operation", "inventory.refresh",
-		"user", userFromContext(ctx),
-		"role", roleFromContext(ctx),
-		"team", teamFromContext(ctx),
+		"user", user,
+		"role", role,
+		"team", team,
 		"inventory_item_id", item.ID,
 	)
 	return nil
 }
 
-func logError(ctx context.Context, operation string, inventoryItemID int64, err error) {
+func logError(operation, user, role, team string, inventoryItemID int64, err error) {
 	slog.Error("unexpected inventory error",
 		"operation", operation,
-		"user", userFromContext(ctx),
-		"role", roleFromContext(ctx),
-		"team", teamFromContext(ctx),
+		"user", user,
+		"role", role,
+		"team", team,
 		"inventory_item_id", inventoryItemID,
 		"error", err.Error(),
 	)
-}
-
-func userFromContext(ctx context.Context) string {
-	user, _, _ := infrolog.UserContextFields(ctx)
-	return user
-}
-
-func roleFromContext(ctx context.Context) string {
-	_, role, _ := infrolog.UserContextFields(ctx)
-	return role
-}
-
-func teamFromContext(ctx context.Context) string {
-	_, _, team := infrolog.UserContextFields(ctx)
-	return team
 }

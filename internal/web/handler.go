@@ -715,11 +715,14 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, name string, da
 	data["showDevPanel"] = h.devMode
 	data["requestURI"] = r.URL.RequestURI()
 	if err := h.tmpl.ExecuteTemplate(w, name, data); err != nil {
-		session, _ := security.SessionFromContext(r.Context())
+		user := ""
+		if session, ok := security.SessionFromContext(r.Context()); ok {
+			user = session.GitHubUser.GitHubUsername
+		}
 		slog.Error("template rendering failed",
 			"operation", "web.render",
 			"path", r.URL.Path,
-			"user", session.GitHubUser.GitHubUsername,
+			"user", user,
 			"error", err.Error(),
 		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
