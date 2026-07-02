@@ -31,6 +31,7 @@ type User struct {
 	Organisation   string   // primary GitHub organisation
 	TeamMembership []string // GitHub team slugs within the organisation
 	OIDCSubject    string   // e.g. "github:<username>"
+	GitHubToken    string   // OAuth access token; used for OCI registry operations
 }
 
 // ArtefactInfo describes the target OCI artefact being assessed.

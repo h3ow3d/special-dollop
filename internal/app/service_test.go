@@ -23,7 +23,7 @@ return "dGVzdHNpZw==", nil // base64 "testsig"
 
 type fakePublisher struct{}
 
-func (f *fakePublisher) Publish(_ context.Context, _, _ string, _ []byte) (string, error) {
+func (f *fakePublisher) Publish(_ context.Context, _, _ string, _ []byte, _, _ string) (string, error) {
 return "registry.local/repo@sha256:abc123", nil
 }
 

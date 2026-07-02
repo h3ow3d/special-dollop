@@ -74,7 +74,7 @@ MaxAge:   300,
 })
 
 authURL := fmt.Sprintf(
-"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=user%%3Aemail%%20read%%3Aorg&state=%s",
+"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=user%%3Aemail%%20read%%3Aorg%%20write%%3Apackages&state=%s",
 url.QueryEscape(h.cfg.ClientID),
 url.QueryEscape(h.cfg.RedirectURL),
 url.QueryEscape(state),
@@ -128,6 +128,7 @@ if err != nil {
 http.Error(w, "fetch user failed", http.StatusInternalServerError)
 return
 }
+user.GitHubToken = token
 
 encoded, err := h.sc.Encode("clph_session", user)
 if err != nil {
