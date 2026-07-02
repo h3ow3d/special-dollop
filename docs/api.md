@@ -70,7 +70,8 @@
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| POST | `/dev/impersonate-role` | Change the session-only effective role for local development | Administrator, Assessor, Reader |
+| POST | `/dev/impersonate-role` | Change the session-only effective role for local development (GitHub OAuth sessions only) | Administrator, Assessor, Reader |
+| POST | `/dev/impersonate-user` | Change the session-only effective user/role/team for local development (GitHub OAuth sessions only) | Administrator, Assessor, Reader |
 
 ## Administrator
 

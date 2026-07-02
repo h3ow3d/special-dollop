@@ -295,6 +295,12 @@ func TestDevPanelShowsAuthSourceDev(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "Development Login") {
 		t.Fatal("expected Authentication Source: Development Login in dev panel")
 	}
+	if strings.Contains(rr.Body.String(), "/dev/impersonate-role") {
+		t.Fatal("did not expect role impersonation controls for development login sessions")
+	}
+	if strings.Contains(rr.Body.String(), "/dev/impersonate-user") {
+		t.Fatal("did not expect user impersonation controls for development login sessions")
+	}
 }
 
 func TestDevPanelShowsAuthSourceGitHub(t *testing.T) {

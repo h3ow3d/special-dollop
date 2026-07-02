@@ -24,6 +24,10 @@ func (h *Handler) impersonateRole(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
+	if session.AuthSource == "dev" {
+		http.NotFound(w, r)
+		return
+	}
 
 	role := strings.TrimSpace(r.FormValue("role"))
 	if !isSupportedDevRole(role) {
@@ -68,6 +72,10 @@ func (h *Handler) impersonateUser(w http.ResponseWriter, r *http.Request) {
 	session, ok := security.SessionFromContext(r.Context())
 	if !ok || session.UserID == 0 {
 		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	if session.AuthSource == "dev" {
+		http.NotFound(w, r)
 		return
 	}
 

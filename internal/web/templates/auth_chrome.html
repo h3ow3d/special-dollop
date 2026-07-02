@@ -66,6 +66,7 @@
       <div><dt class="font-medium inline">Stored Role:</dt> <dd class="inline">{{roleLabel .session.RoleSlug}}</dd></div>
       <div><dt class="font-medium inline">Authentication Source:</dt> <dd class="inline">{{if eq .session.AuthSource "dev"}}Development Login{{else}}GitHub OAuth{{end}}</dd></div>
     </dl>
+    {{if ne .session.AuthSource "dev"}}
     <div class="space-y-2">
       <p class="font-medium">Assume Role:</p>
       <form method="post" action="/dev/impersonate-role" class="flex flex-wrap gap-2 items-center">
@@ -94,6 +95,7 @@
         {{end}}
       </form>
     </div>
+    {{end}}
     {{end}}
   </div>
 </section>{{end}}{{end}}
