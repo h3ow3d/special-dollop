@@ -4,7 +4,7 @@
     <nav class="flex flex-wrap items-center gap-4 text-sm">
       <a href="/wizard" class="hover:text-blue-600">Dashboard</a>
       <a href="/oci/discover" class="hover:text-blue-600">Inventory</a>
-      {{if eq .session.RoleSlug "administrator"}}
+      {{if eq .session.EffectiveRoleSlug "administrator"}}
       <a href="/admin/users" class="hover:text-blue-600">Users</a>
       <a href="/admin/teams" class="hover:text-blue-600">Teams</a>
       {{end}}
@@ -19,14 +19,30 @@
   </div>
 </header>{{end}}
 
-{{define "dev_panel.html"}}{{if and .showDevPanel .authenticated}}<section class="max-w-6xl mx-auto mt-6 px-8">
-  <div class="bg-amber-50 border border-amber-200 rounded p-4 text-sm text-amber-950">
-    <h2 class="font-semibold mb-2">Development Authentication Panel</h2>
+{{define "dev_panel.html"}}{{if and .showDevPanel .authenticated}}<section class="max-w-6xl mx-auto mt-6 px-8 space-y-4">
+  {{if .session.IsImpersonating}}
+  <div class="bg-red-50 border border-red-200 rounded p-4 text-sm text-red-900 font-medium">
+    DEVELOPMENT MODE: Currently impersonating {{roleLabel .session.EffectiveRoleSlug}}
+  </div>
+  {{end}}
+  <div class="bg-amber-50 border border-amber-200 rounded p-4 text-sm text-amber-950 space-y-4">
+    <h2 class="font-semibold">Developer Tools</h2>
     <dl class="grid gap-2 md:grid-cols-2">
-      <div><dt class="font-medium inline">Current User:</dt> <dd class="inline">{{.session.GitHubUser.GitHubUsername}}</dd></div>
-      <div><dt class="font-medium inline">Current Role:</dt> <dd class="inline">{{if .session.RoleSlug}}{{.session.RoleSlug}}{{else}}unassigned{{end}}</dd></div>
+      <div><dt class="font-medium inline">Current User:</dt> <dd class="inline">{{if .session.GitHubUser.DisplayName}}{{.session.GitHubUser.DisplayName}}{{else}}@{{.session.GitHubUser.GitHubUsername}}{{end}}</dd></div>
+      <div><dt class="font-medium inline">GitHub Username:</dt> <dd class="inline">@{{.session.GitHubUser.GitHubUsername}}</dd></div>
       <div><dt class="font-medium inline">Current Team:</dt> <dd class="inline">{{if .session.TeamName}}{{.session.TeamName}}{{else}}none{{end}}</dd></div>
-      <div><dt class="font-medium inline">Authentication Status:</dt> <dd class="inline">authenticated</dd></div>
+      <div><dt class="font-medium inline">Current Role:</dt> <dd class="inline">{{roleLabel .session.EffectiveRoleSlug}}</dd></div>
+      <div><dt class="font-medium inline">Stored Role:</dt> <dd class="inline">{{roleLabel .session.RoleSlug}}</dd></div>
+      <div><dt class="font-medium inline">Authentication Status:</dt> <dd class="inline">Authenticated</dd></div>
     </dl>
+    <div class="space-y-2">
+      <p class="font-medium">Assume Role:</p>
+      <form method="post" action="/dev/impersonate-role" class="flex flex-wrap gap-2 items-center">
+        <input type="hidden" name="gorilla.csrf.Token" value="{{.csrf}}" />
+        <button type="submit" name="role" value="reader" class="px-3 py-1 rounded border bg-white hover:bg-slate-50">Reader</button>
+        <button type="submit" name="role" value="assessor" class="px-3 py-1 rounded border bg-white hover:bg-slate-50">Assessor</button>
+        <button type="submit" name="role" value="administrator" class="px-3 py-1 rounded border bg-white hover:bg-slate-50">Administrator</button>
+      </form>
+    </div>
   </div>
 </section>{{end}}{{end}}

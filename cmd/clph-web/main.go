@@ -90,7 +90,9 @@ func main() {
 	teamSvc := teams.NewService(teamRepo)
 
 	// Auth enricher: upserts DB user after GitHub OAuth.
-	authSvc := auth.NewService(userSvc, teamRepo, auditSvc)
+	authSvc := auth.NewService(userSvc, teamRepo, auditSvc, auth.Config{
+		BootstrapAdmins: parseCSV(getenv("BOOTSTRAP_ADMINS", "")),
+	})
 	oauthHandler.WithEnricher(authSvc)
 
 	// Admin handler
@@ -125,4 +127,20 @@ func padTo32(v string) string {
 		return v[:32]
 	}
 	return v + strings.Repeat("x", 32-len(v))
+}
+
+func parseCSV(v string) []string {
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
 }

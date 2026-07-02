@@ -25,7 +25,7 @@ func RequireRole(roles ...RoleSlug) func(http.Handler) http.Handler {
 				http.Error(w, "account is deactivated", http.StatusForbidden)
 				return
 			}
-			if !allowed[session.RoleSlug] {
+			if !allowed[session.EffectiveRoleSlug()] {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}

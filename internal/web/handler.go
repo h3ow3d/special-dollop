@@ -58,6 +58,20 @@ func templateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"add": func(a, b int) int { return a + b },
 		"sub": func(a, b int) int { return a - b },
+		"roleLabel": func(slug string) string {
+			switch slug {
+			case "administrator":
+				return "Administrator"
+			case "assessor":
+				return "Assessor"
+			case "reader":
+				return "Reader"
+			case "":
+				return "Unassigned"
+			default:
+				return slug
+			}
+		},
 		"sectionMeta": func(name domain.SectionName) domain.SectionMeta {
 			return domain.SectionMetadata[name]
 		},
@@ -169,6 +183,10 @@ func (h *Handler) Router(csrfKey []byte) http.Handler {
 				h.admin.RegisterRoutes(ar)
 			}
 		})
+
+		if h.devMode {
+			pr.Post("/dev/impersonate-role", h.impersonateRole)
+		}
 	})
 
 	return r
@@ -479,10 +497,17 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, name string, da
 	}
 	session, hasSession := security.SessionFromContext(r.Context())
 	if hasSession {
+		if r.Method == http.MethodGet {
+			if lastVisitedPath := sanitizeReturnTarget(r.URL.RequestURI()); lastVisitedPath != "" && lastVisitedPath != session.LastVisitedPath {
+				session.LastVisitedPath = lastVisitedPath
+				_ = h.oauth.SetSessionCookie(w, session)
+			}
+		}
 		data["session"] = session
 	}
 	data["authenticated"] = hasSession
 	data["showDevPanel"] = h.devMode
+	data["requestURI"] = r.URL.RequestURI()
 	if err := h.tmpl.ExecuteTemplate(w, name, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

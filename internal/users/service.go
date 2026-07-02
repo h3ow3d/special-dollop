@@ -20,6 +20,14 @@ func NewService(users UserRepository, roles RoleRepository) *Service {
 // GetOrCreate returns the existing user for the given GitHub user ID, or creates
 // a new one with the "reader" role if none exists.
 func (s *Service) GetOrCreate(ctx context.Context, u *User) (*User, error) {
+	created, _, err := s.GetOrCreateWithRole(ctx, u, RoleSlugReader)
+	return created, err
+}
+
+// GetOrCreateWithRole returns the existing user for the given GitHub user ID,
+// or creates a new one with the provided default role slug if none exists. The
+// returned boolean reports whether a new user record was created.
+func (s *Service) GetOrCreateWithRole(ctx context.Context, u *User, defaultRoleSlug string) (*User, bool, error) {
 	existing, err := s.users.GetByGitHubUserID(ctx, u.GitHubUserID)
 	if err == nil {
 		// Update display information but preserve role and team.
@@ -28,25 +36,28 @@ func (s *Service) GetOrCreate(ctx context.Context, u *User) (*User, error) {
 		existing.Email = u.Email
 		existing.AvatarURL = u.AvatarURL
 		if err := s.users.Upsert(ctx, existing); err != nil {
-			return nil, fmt.Errorf("update user: %w", err)
+			return nil, false, fmt.Errorf("update user: %w", err)
 		}
-		return existing, nil
+		return existing, false, nil
 	}
 	if err != ErrNotFound {
-		return nil, fmt.Errorf("get user: %w", err)
+		return nil, false, fmt.Errorf("get user: %w", err)
 	}
 
-	// New user – assign Reader role by default.
-	reader, err := s.roles.GetBySlug(ctx, RoleSlugReader)
-	if err != nil {
-		return nil, fmt.Errorf("get reader role: %w", err)
+	if defaultRoleSlug == "" {
+		defaultRoleSlug = RoleSlugReader
 	}
-	u.RoleID = reader.ID
+
+	role, err := s.roles.GetBySlug(ctx, defaultRoleSlug)
+	if err != nil {
+		return nil, false, fmt.Errorf("get %s role: %w", defaultRoleSlug, err)
+	}
+	u.RoleID = role.ID
 	u.Active = true
 	if err := s.users.Upsert(ctx, u); err != nil {
-		return nil, fmt.Errorf("create user: %w", err)
+		return nil, false, fmt.Errorf("create user: %w", err)
 	}
-	return u, nil
+	return u, true, nil
 }
 
 // GetByID retrieves a user by their platform ID.

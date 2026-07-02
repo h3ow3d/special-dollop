@@ -80,37 +80,55 @@ func (h *OAuthHandler) WithEnricher(e UserEnricher) *OAuthHandler {
 // SecureCookies reports whether cookies should be sent with the Secure flag.
 func (h *OAuthHandler) SecureCookies() bool { return h.cfg.SecureCookies }
 
+// SetSessionCookie signs and stores the current session in the session cookie.
+func (h *OAuthHandler) SetSessionCookie(w http.ResponseWriter, session domain.UserSession) error {
+	encoded, err := h.sc.Encode("clph_session", session)
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "clph_session",
+		Value:    encoded,
+		HttpOnly: true,
+		Secure:   h.cfg.SecureCookies,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+		MaxAge:   86400, // 24 hours
+	})
+	return nil
+}
+
 // RedirectToGitHub handles GET /auth/login.
 // It generates a random state, stores it in a temporary cookie, and redirects
 // the user to GitHub's authorisation endpoint.
 func (h *OAuthHandler) RedirectToGitHub(w http.ResponseWriter, r *http.Request) {
-state, err := randomState()
-if err != nil {
-http.Error(w, "internal error", http.StatusInternalServerError)
-return
-}
-encoded, err := h.sc.Encode("oauth_state", state)
-if err != nil {
-http.Error(w, "internal error", http.StatusInternalServerError)
-return
-}
-http.SetCookie(w, &http.Cookie{
-Name:     "clph_oauth_state",
-Value:    encoded,
-HttpOnly: true,
-Secure:   h.cfg.SecureCookies,
-SameSite: http.SameSiteLaxMode,
-Path:     "/auth/callback",
-MaxAge:   300,
-})
+	state, err := randomState()
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	encoded, err := h.sc.Encode("oauth_state", state)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "clph_oauth_state",
+		Value:    encoded,
+		HttpOnly: true,
+		Secure:   h.cfg.SecureCookies,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/auth/callback",
+		MaxAge:   300,
+	})
 
-authURL := fmt.Sprintf(
-"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=user%%3Aemail%%20read%%3Aorg%%20write%%3Apackages&state=%s",
-url.QueryEscape(h.cfg.ClientID),
-url.QueryEscape(h.cfg.RedirectURL),
-url.QueryEscape(state),
-)
-http.Redirect(w, r, authURL, http.StatusFound)
+	authURL := fmt.Sprintf(
+		"https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s&scope=user%%3Aemail%%20read%%3Aorg%%20write%%3Apackages&state=%s",
+		url.QueryEscape(h.cfg.ClientID),
+		url.QueryEscape(h.cfg.RedirectURL),
+		url.QueryEscape(state),
+	)
+	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
 // HandleCallback handles GET /auth/callback.
@@ -177,49 +195,39 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	encoded, err := h.sc.Encode("clph_session", session)
-	if err != nil {
+	if err := h.SetSessionCookie(w, session); err != nil {
 		http.Error(w, "session encode failed", http.StatusInternalServerError)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     "clph_session",
-		Value:    encoded,
-		HttpOnly: true,
-		Secure:   h.cfg.SecureCookies,
-		SameSite: http.SameSiteStrictMode,
-		Path:     "/",
-		MaxAge:   86400, // 24 hours
-	})
 	http.Redirect(w, r, "/wizard", http.StatusFound)
 }
 
 // exchangeCode exchanges an OAuth2 code for a GitHub access token.
 func (h *OAuthHandler) exchangeCode(ctx context.Context, code string) (string, error) {
-resp, err := http.PostForm("https://github.com/login/oauth/access_token", url.Values{
-"client_id":     {h.cfg.ClientID},
-"client_secret": {h.cfg.ClientSecret},
-"code":          {code},
-"redirect_uri":  {h.cfg.RedirectURL},
-})
-if err != nil {
-return "", fmt.Errorf("token request: %w", err)
-}
-defer resp.Body.Close()
+	resp, err := http.PostForm("https://github.com/login/oauth/access_token", url.Values{
+		"client_id":     {h.cfg.ClientID},
+		"client_secret": {h.cfg.ClientSecret},
+		"code":          {code},
+		"redirect_uri":  {h.cfg.RedirectURL},
+	})
+	if err != nil {
+		return "", fmt.Errorf("token request: %w", err)
+	}
+	defer resp.Body.Close()
 
-body, err := io.ReadAll(resp.Body)
-if err != nil {
-return "", fmt.Errorf("read token response: %w", err)
-}
-vals, err := url.ParseQuery(string(body))
-if err != nil {
-return "", fmt.Errorf("parse token response: %w", err)
-}
-token := vals.Get("access_token")
-if token == "" {
-return "", fmt.Errorf("no access_token in response: %s", string(body))
-}
-return token, nil
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read token response: %w", err)
+	}
+	vals, err := url.ParseQuery(string(body))
+	if err != nil {
+		return "", fmt.Errorf("parse token response: %w", err)
+	}
+	token := vals.Get("access_token")
+	if token == "" {
+		return "", fmt.Errorf("no access_token in response: %s", string(body))
+	}
+	return token, nil
 }
 
 // githubUser is the GitHub user API response (subset).
@@ -293,70 +301,70 @@ func (h *OAuthHandler) fetchUser(ctx context.Context, token string) (domain.User
 
 // fetchPrimaryEmail retrieves the user's primary verified email from GitHub.
 func (h *OAuthHandler) fetchPrimaryEmail(ctx context.Context, token string) string {
-req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
-req.Header.Set("Authorization", "Bearer "+token)
-req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-resp, err := http.DefaultClient.Do(req)
-if err != nil {
-return ""
-}
-defer resp.Body.Close()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
 
-var emails []githubEmail
-if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
-return ""
-}
-for _, e := range emails {
-if e.Primary && e.Verified {
-return e.Email
-}
-}
-return ""
+	var emails []githubEmail
+	if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
+		return ""
+	}
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			return e.Email
+		}
+	}
+	return ""
 }
 
 // fetchPrimaryOrg returns the login of the first organisation the user belongs to.
 // Returns an empty string if the user belongs to no organisations or the call fails.
 func (h *OAuthHandler) fetchPrimaryOrg(ctx context.Context, token string) string {
-req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/orgs?per_page=1", nil)
-req.Header.Set("Authorization", "Bearer "+token)
-req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/orgs?per_page=1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-resp, err := http.DefaultClient.Do(req)
-if err != nil {
-return ""
-}
-defer resp.Body.Close()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
 
-var orgs []githubOrg
-if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil || len(orgs) == 0 {
-return ""
-}
-return orgs[0].Login
+	var orgs []githubOrg
+	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil || len(orgs) == 0 {
+		return ""
+	}
+	return orgs[0].Login
 }
 
 // fetchTeamSlugs returns the slug of every team the user belongs to (up to 100).
 // Returns nil if the call fails or the user belongs to no teams.
 func (h *OAuthHandler) fetchTeamSlugs(ctx context.Context, token string) []string {
-req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/teams?per_page=100", nil)
-req.Header.Set("Authorization", "Bearer "+token)
-req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/teams?per_page=100", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-resp, err := http.DefaultClient.Do(req)
-if err != nil {
-return nil
-}
-defer resp.Body.Close()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
 
-var teams []githubTeam
-if err := json.NewDecoder(resp.Body).Decode(&teams); err != nil || len(teams) == 0 {
-return nil
-}
-slugs := make([]string, 0, len(teams))
-for _, t := range teams {
-slugs = append(slugs, t.Slug)
-}
-return slugs
+	var teams []githubTeam
+	if err := json.NewDecoder(resp.Body).Decode(&teams); err != nil || len(teams) == 0 {
+		return nil
+	}
+	slugs := make([]string, 0, len(teams))
+	for _, t := range teams {
+		slugs = append(slugs, t.Slug)
+	}
+	return slugs
 }
 
 // AuthMiddleware reads the signed session cookie and populates the request context
@@ -392,20 +400,20 @@ func RequireAuth(next http.Handler) http.Handler {
 
 // SecurityHeaders adds standard security response headers.
 func SecurityHeaders(next http.Handler) http.Handler {
-return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-w.Header().Set("Content-Security-Policy",
-"default-src 'self'; script-src 'self' https://unpkg.com https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'")
-w.Header().Set("X-Content-Type-Options", "nosniff")
-w.Header().Set("X-Frame-Options", "DENY")
-next.ServeHTTP(w, r)
-})
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; script-src 'self' https://unpkg.com https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // randomState generates a cryptographically random OAuth2 state value.
 func randomState() (string, error) {
-b := make([]byte, 16)
-if _, err := rand.Read(b); err != nil {
-return "", err
-}
-return hex.EncodeToString(b), nil
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

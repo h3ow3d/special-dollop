@@ -7,12 +7,14 @@ import "time"
 type Action string
 
 const (
-	ActionLogin           Action = "user.login"
-	ActionLogout          Action = "user.logout"
-	ActionRoleChanged     Action = "user.role_changed"
-	ActionTeamChanged     Action = "user.team_changed"
-	ActionUserActivated   Action = "user.activated"
-	ActionUserDeactivated Action = "user.deactivated"
+	ActionLogin                  Action = "user.login"
+	ActionLogout                 Action = "user.logout"
+	ActionRoleChanged            Action = "user.role_changed"
+	ActionRoleImpersonation      Action = "Role Impersonation"
+	ActionTeamChanged            Action = "user.team_changed"
+	ActionUserActivated          Action = "user.activated"
+	ActionUserDeactivated        Action = "user.deactivated"
+	ActionBootstrapAdminAssigned Action = "Bootstrap Administrator Assigned"
 )
 
 // Entry is a single audit log record.
