@@ -18,10 +18,12 @@ type DevTeamSpec struct {
 }
 
 // DevUserSpec describes a development user to be seeded. GitHubUserID uses a
-// stable negative value that can never be issued by GitHub, ensuring dev users
-// are cleanly separated from real GitHub-authenticated users.
+// stable negative value: GitHub only ever issues positive integer user IDs, so
+// negative values are a safe sentinel range that can never conflict with real
+// GitHub-authenticated users. This allows the existing GetByGitHubUserID lookup
+// path to work without additional repository methods.
 type DevUserSpec struct {
-	GitHubUserID int64  // stable negative sentinel; never a real GitHub user ID
+	GitHubUserID int64  // stable negative sentinel; GitHub IDs are always positive
 	Username     string // used as github_username in the platform
 	DisplayName  string
 	Email        string
