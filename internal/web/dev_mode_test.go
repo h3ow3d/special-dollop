@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -8,16 +9,59 @@ import (
 	"testing"
 
 	"github.com/gorilla/securecookie"
+	"github.com/h3ow3d/special-dollop/internal/audit"
 	"github.com/h3ow3d/special-dollop/internal/domain"
+	"github.com/h3ow3d/special-dollop/internal/infra/security"
+	"github.com/h3ow3d/special-dollop/internal/teams"
 	"github.com/h3ow3d/special-dollop/internal/users"
 )
 
-func newDevModeHandler(t *testing.T, enabled bool) *Handler {
+type capturingAuditRepo struct {
+	entries []*audit.Entry
+}
+
+func (r *capturingAuditRepo) Record(_ context.Context, e *audit.Entry) error {
+	cp := *e
+	r.entries = append(r.entries, &cp)
+	return nil
+}
+
+func (r *capturingAuditRepo) ListByUser(_ context.Context, userID int64, limit int) ([]*audit.Entry, error) {
+	return nil, nil
+}
+
+func newDevModeHandler(t *testing.T, enabled bool) (*Handler, *security.OAuthHandler, *testAdminUserRepo, *capturingAuditRepo) {
 	t.Helper()
 
-	h, _ := newTestHandler(t)
+	h, oauth := newTestHandler(t)
 	h.WithDevelopmentMode(enabled)
-	return h
+
+	teamID := int64(10)
+	userRepo := &testAdminUserRepo{
+		users: []*users.User{
+			{
+				ID:             1,
+				GitHubUserID:   101,
+				GitHubUsername: "admin",
+				DisplayName:    "Admin User",
+				Email:          "admin@example.com",
+				RoleID:         1,
+				TeamID:         &teamID,
+				Active:         true,
+			},
+		},
+	}
+	teamSvc := teams.NewService(&testAdminTeamRepo{
+		teams: []*teams.Team{
+			{ID: 10, Name: "Platform Team", Active: true},
+		},
+	})
+	auditRepo := &capturingAuditRepo{}
+	userSvc := users.NewService(userRepo, &testAdminRoleRepo{})
+	auditSvc := audit.NewService(auditRepo)
+	h.WithAdminHandler(NewAdminHandler(h, userSvc, teamSvc, auditSvc))
+
+	return h, oauth, userRepo, auditRepo
 }
 
 func newSessionRequest(t *testing.T, method, target string, session domain.UserSession, body string) *http.Request {
@@ -37,6 +81,27 @@ func newSessionRequest(t *testing.T, method, target string, session domain.UserS
 	return req
 }
 
+func decodeSessionCookie(t *testing.T, rr *httptest.ResponseRecorder) domain.UserSession {
+	t.Helper()
+
+	res := rr.Result()
+	defer res.Body.Close()
+
+	sc := securecookie.New([]byte(testHashKey), nil)
+	for _, cookie := range res.Cookies() {
+		if cookie.Name != "clph_session" {
+			continue
+		}
+		var session domain.UserSession
+		if err := sc.Decode("clph_session", cookie.Value, &session); err != nil {
+			t.Fatalf("decode session: %v", err)
+		}
+		return session
+	}
+	t.Fatal("expected clph_session cookie")
+	return domain.UserSession{}
+}
+
 func TestDevModePanelVisibility(t *testing.T) {
 	session := domain.UserSession{
 		GitHubUser: domain.User{
@@ -51,7 +116,7 @@ func TestDevModePanelVisibility(t *testing.T) {
 	}
 
 	t.Run("visible when enabled", func(t *testing.T) {
-		h := newDevModeHandler(t, true)
+		h, _, _, _ := newDevModeHandler(t, true)
 		req := newSessionRequest(t, http.MethodGet, "/dashboard", session, "")
 		rr := httptest.NewRecorder()
 		h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(rr, req)
@@ -68,7 +133,7 @@ func TestDevModePanelVisibility(t *testing.T) {
 	})
 
 	t.Run("hidden when disabled", func(t *testing.T) {
-		h := newDevModeHandler(t, false)
+		h, _, _, _ := newDevModeHandler(t, false)
 		req := newSessionRequest(t, http.MethodGet, "/dashboard", session, "")
 		rr := httptest.NewRecorder()
 		h.Router([]byte("12345678901234567890123456789012")).ServeHTTP(rr, req)
@@ -83,7 +148,7 @@ func TestDevModePanelVisibility(t *testing.T) {
 }
 
 func TestImpersonationRoutesRemoved(t *testing.T) {
-	h := newDevModeHandler(t, true)
+	h, _, _, _ := newDevModeHandler(t, true)
 	router := h.Router([]byte("12345678901234567890123456789012"))
 	session := domain.UserSession{
 		GitHubUser: domain.User{
