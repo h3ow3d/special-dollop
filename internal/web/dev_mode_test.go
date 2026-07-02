@@ -447,3 +447,34 @@ func TestDevModeUserImpersonationDisabledWhenOff(t *testing.T) {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
 }
+
+func TestDevModeImpersonationDisabledForDevelopmentLoginSessions(t *testing.T) {
+	h, oauth, _, _ := newDevModeHandler(t, true)
+	session := domain.UserSession{
+		GitHubUser: domain.User{
+			GitHubUsername: "sam.holden",
+			DisplayName:    "Sam Holden",
+		},
+		UserID:     1,
+		RoleID:     1,
+		RoleSlug:   users.RoleSlugAdministrator,
+		AuthSource: "dev",
+		Active:     true,
+	}
+
+	roleForm := url.Values{"role": {users.RoleSlugReader}}
+	roleReq := newSessionRequest(t, http.MethodPost, "/dev/impersonate-role", session, roleForm.Encode())
+	roleRR := httptest.NewRecorder()
+	oauth.AuthMiddleware(http.HandlerFunc(h.impersonateRole)).ServeHTTP(roleRR, roleReq)
+	if roleRR.Code != http.StatusNotFound {
+		t.Fatalf("expected role impersonation 404 for dev login session, got %d", roleRR.Code)
+	}
+
+	userForm := url.Values{"user_id": {"2"}}
+	userReq := newSessionRequest(t, http.MethodPost, "/dev/impersonate-user", session, userForm.Encode())
+	userRR := httptest.NewRecorder()
+	oauth.AuthMiddleware(http.HandlerFunc(h.impersonateUser)).ServeHTTP(userRR, userReq)
+	if userRR.Code != http.StatusNotFound {
+		t.Fatalf("expected user impersonation 404 for dev login session, got %d", userRR.Code)
+	}
+}
