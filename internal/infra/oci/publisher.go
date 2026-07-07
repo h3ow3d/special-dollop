@@ -82,6 +82,7 @@ func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envel
 		return "", fmt.Errorf("create repository client: %w", err)
 	}
 	repo.PlainHTTP = p.plainHTTP
+	repo.SkipReferrersGC = shouldSkipReferrersGC(targetRef.Registry)
 	repo.Client = &auth.Client{
 		Client: retry.DefaultClient,
 		Cache:  auth.NewCache(),
@@ -130,6 +131,10 @@ func (p *Publisher) Publish(ctx context.Context, registryHost, ref string, envel
 	}
 
 	return fmt.Sprintf("%s/%s@%s", targetRef.Registry, targetRef.Repository, manifestDesc.Digest.String()), nil
+}
+
+func shouldSkipReferrersGC(registryHost string) bool {
+	return strings.EqualFold(strings.TrimSpace(registryHost), "ghcr.io")
 }
 
 func validateCredentialPair(username, password string) error {
